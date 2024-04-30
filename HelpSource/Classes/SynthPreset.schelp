@@ -1,0 +1,107 @@
+TITLE:: SynthPreset
+summary:: create synths having a specified preset
+categories:: Server>Nodes, Server>Abstractions
+related:: Tutorials/Presets, Classes/EventTypes, Classes/Preset, Classes/PresetChain, Classes/PC, Classes/Synth, Classes/SynthDef
+
+DESCRIPTION::
+SynthPreset is an abstraction for creating synth nodes on the server, similar to link::Classes/Synth::, but with the ability to specify a preset. Presets are stored in link::Classes/SynthDef#-metadata:: or in a global link::Classes/Preset::. See the link::Tutorials/Presets:: tutorial for more code examples.
+
+
+CLASSMETHODS::
+
+METHOD:: new
+Create and return a new SynthPreset object, and immediately start the corresponding synth node on the server.
+
+ARGUMENT:: defName
+A String or Symbol specifying the name of the SynthDef to use in creating the Synth.
+
+ARGUMENT:: presetName
+A Symbol specifying the name of the preset to use in creating the synth. The preset must be listed in the SynthDef's metadata[\presets] or in the global link::Classes/Preset:: dictionary. Alternatively, you may directly provide an Event which contains the preset values, or you may also provide a link::Classes/PresetChain:: (or link::Classes/PC::) if you wish to chain multiple presets together.
+
+ARGUMENT:: args
+An optional Array specifying initial values for the SynthDef's arguments (controls). These are specified in pairs of control name or index and value. If names are used they can be specified with either Strings or Symbols. e.g. [\frequency, 440, \amplitude, 1, ...]. Values that are arrays are sent using OSC array type-tags ($[ and $]). These values will be assigned to subsequent controls. Values from the default pitchEvent (\degree, \note, \mtranspose, \octave, etc.) may be used here, and they will be converted to \freq. \db may also be used, and it will be converted to \amp.
+
+ARGUMENT:: target
+A target for this Synth. If target is not a Group or Synth, it will be converted as follows: If it is a Server, it will be converted to the Default Group of that server. If it is nil, to the default_group of the default Server. If it is an integer, it is created relative to a group with that id.
+
+ARGUMENT:: addAction
+one of the following Symbols:
+definitionlist::
+## \addToHead || (the default) add at the head of the group specified by target
+## \addToTail || add at the tail of the group specified by target
+## \addAfter || add immediately after target in its server's node order
+## \addBefore || add immediately before target in its server's node order
+## \addReplace || replace target and take its place in its server's node order
+::
+Note: A Synth is not a valid target for \addToHead and \addToTail.
+
+
+METHOD:: prepareArgs
+used internally to generate an argument list from the given presetName and args. This could be considered a private method, but some users may wish to use this method directly to produce their own argument lists.
+
+ARGUMENT:: defName
+the name of a synth definition
+
+ARGUMENT:: presetName
+the name of a preset associated with that synth definition
+
+ARGUMENT:: args
+additional arguments that will override the preset
+
+returns:: an array containing pairs of control names and values, e.g. code::[\freq, 440, \amp, 0.3, ...]::
+
+
+METHOD:: useKeyOverrides
+a global flag indicating whether certain keys in the args list will override certain other keys in the preset, e.g. whether pitch-related keys like \degree will override \freq (see code examples below)
+
+
+INSTANCEMETHODS::
+
+METHOD:: finalArgs
+
+returns:: an array of the args that were used to create the Synth (derived from user-supplied args, the preset, and default controls)
+
+
+EXAMPLES::
+
+code::
+(// make a SynthDef with presets:
+SynthDef(\test, {
+    var sig = Pulse.ar(\freq.kr(440).poll(0, \freq), \pw.kr(0.5).poll(0, \pw));
+    var env = Env.perc.ar(2);
+    sig = sig * env * \amp.kr(0.5).poll(0, \amp);
+    sig = Pan2.ar(sig, \pan.kr(0).poll(0, \pan));
+    Out.ar(0, sig);
+}, metadata: (
+    // store your presets here:
+    presets: (
+        lowleft: (freq: 170, pan: -1, amp: 0.3),
+        // use keys from the default pitch event, like 'degree'
+        hiright: (degree: 9, pan: 1),
+        // use patterns, routines, and functions, as you would in a Pbind
+        random: (pw: Pn(Pseries(0.05, 0.06, 16)).iter, pan: Pwhite(-1.0, 1.0), detune: {25.0.rand2}),
+        // revert to default control values by using \x
+        sometimesDefault: (note: Prand([3, \x], inf), pw: Prand([0.1, \x], inf))
+    )
+)).add;
+)
+
+// use SynthPreset to create a Synth from a preset
+SynthPreset(\test, \random, [pan: 0, degree: 0]);
+
+(// useKeyOverrides
+SynthPreset.useKeyOverrides = false;
+SynthPreset(\test, \random, [degree: -2]); // degree does not override freq
+SynthPreset.useKeyOverrides = true;
+SynthPreset(\test, \random, [degree: -2]); // degree does override freq
+)
+
+// use \p or \preset in the args to revert to the preset
+SynthPreset(\test, \lowleft, [detune: Pwhite(-1.0, 1) * 15, db: Prand([-24, \p], inf)]);
+
+// use \x in the args to revert to the default control values
+a = SynthPreset(\test, \lowleft, [detune: Pwhite(-1.0, 1) * 15, db: Prand([-24, \x], inf)]);
+
+// look at the resulting args that were used:
+a.finalArgs.postln;
+::

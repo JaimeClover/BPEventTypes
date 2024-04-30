@@ -1,0 +1,91 @@
+TITLE:: Preset
+summary:: a class for building and storing global presets
+categories:: Streams-Patterns-Events>Events
+related:: Tutorials/Presets, Classes/EventTypes, Classes/SynthPreset, Classes/PresetChain, Classes/PC
+
+DESCRIPTION::
+Use Preset to store presets under a specified name in a global dictionary, which can be accessed by link::Classes/SynthPreset::, and by Events and Pbinds that use code::(type: \preset)::. Global Presets are overridden by local presets of the same name that are stored in link::Classes/SynthDef#-metadata::. See the link::Tutorials/Presets:: tutorial for more code examples.
+
+
+CLASSMETHODS::
+
+METHOD:: new
+If you only provide a key, it returns the global preset at that key.
+If you also provide a preset, it replaces the preset at that key.
+
+ARGUMENT:: key
+a symbol.
+
+ARGUMENT:: preset
+a kind of dictionary (usually an Event).
+
+returns:: an Event preset
+
+METHOD:: all
+the global dictionary that stores all presets.
+
+returns:: a dictionary of presets.
+
+METHOD:: remove
+remove a preset from the global dictionary.
+
+ARGUMENT:: key
+the key of the preset you want to remove.
+
+METHOD:: build
+used by link::Classes/EventTypes:: and link::Classes/SynthPreset:: to build an Event from a list of preset names and/or link::Classes/PresetChain::s.
+
+ARGUMENT:: preset
+a preset key (a Symbol), or an array of preset keys, or a PresetChain, or some combination of these.
+
+ARGUMENT:: desc
+a SynthDesc
+
+ARGUMENT:: useOverrides
+a flag (true/false) determining whether or not the key override system will be used (see link::Classes/EventTypes::).
+
+returns:: an Event preset
+
+METHOD:: clear
+remove all presets from the global preset dictionary
+
+
+INSTANCEMETHODS::
+
+
+EXAMPLES::
+
+code::
+(
+SynthDef(\testPreset, {
+    var sig = Pulse.ar(\freq.kr(440).poll(0, \freq), \pw.kr(0.5).poll(0, \pw));
+    var env = Env.perc.ar(2);
+    sig = sig * env * \amp.kr(0.5).poll(0, \amp);
+    sig = Pan2.ar(sig, \pan.kr(0).poll(0, \pan));
+    Out.ar(0, sig);
+}).add;
+
+// make some Presets:
+
+Preset(\chromatic, (note: Pseq((0..12), inf).iter));
+Preset(\panrand, (pan: Pwhite(-1.0, 1)));
+Preset(\pwrand, (pw: Pwhite(0.05, 0.95)));
+
+// presets can be composed with PresetChain (or PC, for short):
+Preset(\chropan, PresetChain(\chromatic, \panrand));
+Preset(\chropw, PC(\chromatic, \pwrand));
+)
+
+(
+fork {
+    loop {
+        [\chromatic, \panrand, \pwrand, \chropan, \chropw].do{|preset|
+            "".postln;
+            preset.postln;
+            SynthPreset(\testPreset, preset);
+            1.wait;
+        }
+    }
+}
+)
+::

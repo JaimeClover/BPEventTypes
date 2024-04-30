@@ -1,0 +1,271 @@
+TITLE:: Using Presets
+summary:: a tutorial on using Presets with Events, Pbinds, and SynthPresets
+categories:: Tutorials
+related:: Classes/SynthPreset, Classes/EventTypes, Classes/Preset, Classes/PresetChain, Classes/PC
+
+DESCRIPTION::
+Presets are similar to link::Classes/SynthDef#-variants::, but they provide a (hopefully) easier way to interface with link::Classes/Event:: and link::Classes/Pbind::.
+
+Presets are Events containing preset values for synth controls. They can be stored in one of two places:
+definitionList::
+## SynthDef metadata || if you want a preset to apply only to a certain SynthDef, store the preset in the SynthDef's metadata at the code::preset:: key.
+## the Preset class || if you want a preset to be available globally, use link::Classes/Preset:: to store it in the global preset dictionary (see example below).
+::
+
+To use a preset, add code::(type: \preset, preset: \myPreset):: in any Event or Pbind.
+
+There is also a new class link::Classes/SynthPreset:: for making a link::Classes/Synth:: having a specified preset.
+
+In addition, the preset system allows you to use keys from the default parent event, such as \degree and \note, in your presets and in your SynthPreset args.
+
+Since presets are a language-side feature, you can even use patterns, routines, and functions as preset values, just like you can in a Pbind.
+
+Multiple presets can be combined into a single preset using link::Classes/PresetChain:: (or link::Classes/PC::, for short).
+
+If you use Arrays of presets in Events or Pbinds, this results in multi-channel expansion (chords).
+
+Probably the easiest way to learn how to use presets is to go through the following code examples.
+
+EXAMPLES::
+
+code::
+// Examples of how to use Presets
+
+(// make a SynthDef with presets:
+SynthDef(\test, {
+    var sig = Pulse.ar(\freq.kr(440).poll(0, \freq), \pw.kr(0.5).poll(0, \pw));
+    var env = Env.perc.ar(2);
+    sig = sig * env * \amp.kr(0.5).poll(0, \amp);
+    sig = Pan2.ar(sig, \pan.kr(0).poll(0, \pan));
+    Out.ar(0, sig);
+}, metadata: (
+    // store your presets here:
+    presets: (
+        lowleft: (freq: 170, pan: -1, amp: 0.3),
+        // use keys from the default pitch event, like 'degree'
+        hiright: (degree: 9, pan: 1),
+        // use patterns, routines, and functions, as you would in a Pbind
+        random: (pw: Pn(Pseries(0.05, 0.06, 16)).iter, pan: Pwhite(-1.0, 1.0), detune: {12.0.rand2}),
+        // revert to default control values by using \x
+        sometimesDefault: (note: Prand([3, \x], inf), pw: Prand([0.1, \x], inf))
+    )
+)).add;
+
+
+
+// add some global presets:
+Preset(\chromatic, (note: Pseq((0..12), inf).iter));
+Preset(\c, (midinote: 60));
+Preset(\e, (midinote: 64));
+Preset(\g, (midinote: 67));
+
+// presets can be combined using PresetChain (or PC, for short):
+Preset(\crand, PresetChain(\c, \random));
+Preset(\erand, PC(\e, \random));
+Preset(\grand, PC(\g, \random));
+)
+
+
+
+// Some patterns using presets:
+
+(// using type: \preset, choose a preset with the \preset key
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    preset: Pseq([\lowleft, \hiright, \random, \chromatic], inf)
+]).play;
+)
+
+(// override a key in the preset
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    preset: \random,
+    pan: 0 // override the preset's \pan key
+]).play;
+)
+
+// Dependent key overrides:
+
+(// changing one pitch-related key overrides all pitch-related keys in the preset that depend on it
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    preset: Pseq([\random, \lowleft], inf),
+    octave: Prand([6, 5, 4], inf), // override the \freq key of lowleft, but not the \detune key of random
+]).play;
+)
+
+(// same is true for amp-related keys (db overrides amp)
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    preset: \lowleft,
+    db: Pseq([-12, -30], inf) // override the preset's \amp key
+]).play;
+)
+
+(// dependent key overrides can be turned off with useKeyOverrides: false
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    preset: Pseq([\random, \lowleft], inf),
+    useKeyOverrides: false,
+    octave: Prand([6, 5, 4], inf), // does not override the \freq key of lowleft
+]).play;
+)
+
+(// choose within each key whether or not to use the preset
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    preset: \chromatic,
+    freq: Prand([500, \preset], inf), // sometimes use preset freq
+    // you can use \p as a shorthand for \preset
+    pan: Prand([1, \p], inf) // sometimes use preset pan
+]).play;
+)
+
+(// use the default values for SynthDef controls (bypass the defaults in pitchEvent and ampEvent)
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    useControlDefaults: true
+]).play;
+)
+
+(// useControlDefaults acts like a preset, so you can override its keys in the same way
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    useControlDefaults: true,
+    note: Pseq([\p, 3, 0], inf) // use default freq (440) 1/3 of the time
+]).play;
+)
+
+(// when you useControlDefaults, you can override them with a preset
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    useControlDefaults: true, // set freq, pan, pw, and amp to default values
+    preset: \random, // override detune, pan, and pw with values from the preset
+    pan: Pseq([\p, 0], inf), // center every odd note
+    pw: Pseq([0.5, \p], inf) // square every even note
+]).play;
+)
+
+(// in the SynthDef preset, a key with value of \x will revert to the control default value for that key
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    useControlDefaults: true,
+    preset: \sometimesDefault // the preset's note and pw are sometimes \x
+]).play;
+)
+
+(// using \p and \x in combination
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    useControlDefaults: true,
+    preset: \sometimesDefault, // note and pw are sometimes \x
+    degree: Pseq([\p, 3], inf), // override degree every odd note
+    pw: Pseq([0.3, \p], inf) // override pw every even note
+]).play;
+)
+
+// Using parent events to change the default behavior:
+
+(// make \preset the default event type, to reduce typing
+Event.addParentType(\note, Event.parentTypes[\note] ++ (type: \preset));
+Pbind(*[
+    instrument: \test,
+    preset: Pseq([\lowleft, \hiright, \random, \chromatic], inf)
+]).play;
+)
+
+(// always use control default values
+EventTypes.useControlDefaults = true;
+Pbind(\instrument, \test).play;
+)
+
+(// never use key overrides
+EventTypes.useKeyOverrides = false;
+Pbind(*[
+    instrument: \test,
+    preset: Pseq([\random, \lowleft], inf),
+    octave: Prand([6, 5, 4], inf), // does not override the \freq key of lowleft
+]).play;
+)
+
+(// go back to factory settings (type = \note, useKeyOverrides = true, useControlDefaults = false)
+Event.parentTypes[\note].removeAt(\type);
+EventTypes.useKeyOverrides = true;
+EventTypes.useControlDefaults = false;
+Pbind(*[
+    instrument: \test,
+    preset: \random // does nothing without type: \preset
+]).play;
+)
+
+
+
+// SynthPreset:
+
+// use SynthPreset to create a Synth from a preset
+SynthPreset(\test, \random, [pan: 0, degree: 0]);
+SynthPreset(\test, \chromatic, [pan: {1.0.rand2}]);
+SynthPreset(\test, \grand);
+
+(// useKeyOverrides
+SynthPreset.useKeyOverrides = false;
+SynthPreset(\test, \random, [degree: -2]); // degree does not override freq
+SynthPreset.useKeyOverrides = true;
+SynthPreset(\test, \random, [degree: -2]); // degree does override freq
+)
+
+// use \p or \preset in the args to revert to the preset
+SynthPreset(\test, \lowleft, [detune: Pwhite(-1.0, 1) * 15, db: Prand([-24, \p], inf)]);
+
+// use \x in the args to revert to the default control values
+a = SynthPreset(\test, \lowleft, [detune: Pwhite(-1.0, 1) * 15, db: Prand([-24, \x], inf)]);
+
+// look at the resulting args that were used:
+a.finalArgs.postln;
+
+
+
+// use an event as a preset:
+SynthPreset(\test, (note: Pwhite(0, 12)));
+
+Pbind(\type, \preset, \instrument, \test, \preset, (note: Pwhite(0, 12))).play;
+
+
+
+// Chaining presets:
+(
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    // A PresetChain, or PC for short,
+    // chains the presets together into a single preset.
+    // the order of precedence is from left to right.
+    preset: PC(\chromatic, \random, \lowleft),
+    // note the difference if you reverse the arguments...
+    // preset: PC(\lowleft, \random, \chromatic),
+]).play;
+)
+
+
+
+// Multi-channel expansion of arrayed presets is supported:
+
+(// play a c-major chord with randomized pw, pan, and detune for each note
+Pbind(*[
+    type: \preset,
+    instrument: \test,
+    preset: [\crand, \erand, \grand]
+]).play
+)
+::
