@@ -11,4 +11,4 @@ I've also added a few classes to help with presets:
 - `PC`: an alias for `PresetChain`.
 - `SynthPreset`: a way to use presets in Synths.
 
-To install, run `Quarks.install("github.com/JaimeClover/BPEventTypes")`
+To install, run `Quarks.install("https://github.com/JaimeClover/BPEventTypes")`
