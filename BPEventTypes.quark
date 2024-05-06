@@ -3,7 +3,7 @@ name: "BPEventTypes",
 summary: "A collection of event types",
 author: "Brett Pilcher",
 version: "1.0.0",
-schelp: "BPEventTypes",
+schelp: "EventTypes",
 license: "GPL",
 copyright: "Brett Pilcher 2024"
 )
