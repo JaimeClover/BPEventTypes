@@ -52,7 +52,7 @@ EventTypes {
 
 
         // add some custom event types:
-        Event.addEventType(\preset, {arg server, chainEventTypes;
+        Event.addEventType(\preset, {arg server;
             var synthLib, desc, defaults, localPreset, globalPreset, preset;
             var useDefaults, useOverrides;
 
@@ -84,10 +84,10 @@ EventTypes {
             currentEnvironment = currentEnvironment.reject{|val| presetSymbols.includes(val)};
             currentEnvironment.proto = preset;
 
-            this.prChainEventType(server, chainEventTypes.copy);
+            this.prChainEventType(server);
         });
 
-        Event.addEventType(\echo, {arg server, chainEventTypes;
+        Event.addEventType(\echo, {arg server;
             var numNotes, echoTime, echoCoef, lag, echoPan;
 
             numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
@@ -108,11 +108,12 @@ EventTypes {
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
 
-            this.prChainEventType(server, chainEventTypes.copy);
+            this.prChainEventType(server);
         });
 
         Event.addEventType(\presetEcho, {arg server;
-            this.prChainEventType(server, [\preset, \echo, \note]);
+            ~chainedEventTypes = [\preset, \echo];
+            this.prChainEventType(server);
         });
     }
 
@@ -149,12 +150,12 @@ EventTypes {
         }
     }
 
-    *prChainEventType {arg server, chainEventTypes;
-        var nextEventType, nextChain;
-        chainEventTypes = chainEventTypes ? [];
-        nextEventType = chainEventTypes.obtain(0, \note);
-        nextChain = chainEventTypes[1..];
+    *prChainEventType {arg server;
+        var nextEventType, chainedEventTypes;
+        chainedEventTypes = ~chainedEventTypes.copy ? [];
+        nextEventType = chainedEventTypes.obtain(0, \note);
+        ~chainedEventTypes = chainedEventTypes[1..];
         currentEnvironment.parent = Event.parentTypes.atFail(nextEventType, Event.default);
-        ~eventTypes[nextEventType].value(server, nextChain);
+        ~eventTypes[nextEventType].value(server);
     }
 }
