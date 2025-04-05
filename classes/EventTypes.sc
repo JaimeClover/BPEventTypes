@@ -1,9 +1,22 @@
 EventTypes {
 
-    classvar <keyOverrides;
+    classvar <keyOverrides, <>defaultArpKeys;
     classvar <>useKeyOverrides = true;
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
+    classvar <>alternateTuning;
+
+
+    *useAlternateTuning {
+        Event.addParentType(\note,
+            Event.parentTypes[\note] ++ alternateTuning.copy;
+        )
+    }
+
+    *useDefaultTuning {
+        Event.parentTypes[\note].removeAt(\note);
+        Event.parentTypes[\note].removeAt(\midinote);
+    }
 
     *initClass {
         var makeScaleFrom, degreeToNote, noteToMidinote;
@@ -35,23 +48,77 @@ EventTypes {
             midiOctave * scale.stepsPerOctave + 60.0;
         };
 
+        alternateTuning = (
+            note: { degreeToNote.(~degree.value + ~mtranspose.value) },
+            midinote: { noteToMidinote.(~note.value + ~gtranspose.value + ~root.value) },
+        );
+
+        // alternateTuning.postln;
 
         // This parent type allows the \note key to access scale tunings properly:
-        Event.addParentType(\note,
+        /*Event.addParentType(\note,
             Event.parentTypes[\note] ++ (
                 note: { degreeToNote.(~degree + ~mtranspose) },
                 midinote: { noteToMidinote.(~note.value + ~gtranspose + ~root) },
             )
-        );
+        );*/
 
 
         // initialize class variables used by the \preset event type:
         this.initKeyOverrides;
         defaultSymbols = [\x];
         presetSymbols = [\preset, \p];
+        defaultArpKeys = Set[\degree, \note, \midinote, \freq];
 
 
-        // add some custom event types:
+        // add custom event types:
+        /*Event.addEventType(\tunedNote, {arg server;
+            var makeScaleFrom, degreeToNote, noteToMidinote;
+
+            // helper functions for degree -> note -> midinote conversions:
+            makeScaleFrom = { arg scale;
+                scale.isKindOf(Scale).if(
+                    {scale},
+                    {Scale(scale)}
+                );
+            };
+
+            degreeToNote = { arg scaleDegree;
+                var scale, degree, accidental, baseNote;
+                scale = makeScaleFrom.(~scale);
+                degree = scaleDegree.round.asInteger;
+                accidental = (scaleDegree - degree) * 10.0;
+                baseNote = (scale.pitchesPerOctave * (degree div: scale.size)) + scale.degrees.wrapAt(degree);
+                baseNote + accidental;
+            };
+
+            noteToMidinote = {arg note;
+                var scale, tunedNote, midiOctave;
+                scale = makeScaleFrom.(~scale);
+                tunedNote = scale.stepsPerOctave * (note div: scale.pitchesPerOctave) + scale.tuning.wrapAt(note);
+                midiOctave = tunedNote / scale.stepsPerOctave + ~octave - 5.0;
+                midiOctave * scale.stepsPerOctave + 60.0;
+            };
+
+            "here".postln;
+
+            /*if(currentEnvironment.includesKey(\note).not.postln) {
+                ~note = { "a".postln; degreeToNote.(~degree.value + ~mtranspose.value) };
+            };*/
+
+            if(currentEnvironment.includesKey(\midinote).not.postln) {
+                ~midinote = { "b".postln; noteToMidinote.(~note.value + ~gtranspose.value + ~root.value) };
+            };
+
+            ~tunedNote = ~tunedNote ? ~note;
+            ~tunedNote = ~tunedNote ? {"a".postln; degreeToNote.(~degree.value + ~mtranspose.value) };
+            if(~tunedMidinote.isNil) {
+                ~tunedMidinote = { "b".postln; noteToMidinote.(~note.value + ~gtranspose.value + ~root.value) };
+            };
+
+            this.prChainEventType(server);
+        });*/
+
         Event.addEventType(\preset, {arg server;
             var synthLib, desc, defaults, localPreset, globalPreset, preset;
             var useDefaults, useOverrides;
@@ -82,7 +149,7 @@ EventTypes {
             };
 
             currentEnvironment = currentEnvironment.reject{|val| presetSymbols.includes(val)};
-            currentEnvironment.proto = preset;
+            currentEnvironment.proto = (currentEnvironment.proto ?? IdentityDictionary.new).proto_(preset);
 
             this.prChainEventType(server);
         });
@@ -111,8 +178,197 @@ EventTypes {
             this.prChainEventType(server);
         });
 
+        Event.addEventType(\arp, {arg server;
+            var maxSize, arpKeys;
+
+            arpKeys = ~arpKeys ? this.defaultArpKeys;
+            maxSize = currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size}.max(1);
+            ~subdivisions = (~subdivisions.value ? maxSize).max(1);
+
+            ~hop = (~hop ? 1).asArray;
+            ~skip = (~skip ? 0).asArray;
+            ~jump = (~jump ? 0).asArray;
+            ~jump = ~subdivisions.div(maxSize).collect{|i| ~jump.wrapAt(i)};
+            ~jump = [0] ++ ~jump;
+            ~octavate = (~octavate ? 0).asArray.collect(_.asInteger);
+            ~octavate = ~subdivisions.div(maxSize).collect{|i| ~octavate.wrapAt(i) * (i + 1)};
+            ~octavate = [0] ++ ~octavate;
+            ~octave = ~octave + ~subdivisions.collect{|i| ~octavate.wrapAt(i.div(maxSize))};
+
+            currentEnvironment.keysValuesChange{|k, v|
+                if(v.isKindOf(Array) and: {arpKeys.includes(k)}){
+                    var scrambled, result, size;
+                    size = v.size;
+                    scrambled = v.scramble;
+                    result = case
+                    {~mode == \fwd} {~subdivisions.collect{|i|
+                        v.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                    }}
+                    {~mode == \rev} {~subdivisions.collect{|i|
+                        v.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
+                    }}
+                    {~mode == \fwdRev} {~subdivisions.collect{|i|
+                        v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                    }}
+                    {~mode == \revFwd} {~subdivisions.collect{|i|
+                        v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
+                    }}
+                    {~mode == \up} {~subdivisions.collect{|i|
+                        v.sort.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                    }}
+                    {~mode == \down} {~subdivisions.collect{|i|
+                        v.sort.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
+                    }}
+                    {~mode == \upDown} {~subdivisions.collect{|i|
+                        v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                    }}
+                    {~mode == \downUp} {~subdivisions.collect{|i|
+                        v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
+                    }}
+                    {~mode == \shuf} {~subdivisions.collect{|i| scrambled.wrapAt(i)}}
+                    {~mode == \rand} {~subdivisions.collect{|i| v.choose}}
+                    {~mode == \xrand} {
+                        var index = size.rand;
+                        ~subdivisions.collect{|i|
+                            index = (index + (size - 1).rand + 1) % size;
+                            v.at(index)
+                        }
+                    }
+                    {~mode == \wrand} {
+                        ~subdivisions.collect{|i| v.wchoose(~weights ? (1 ! size / size))}
+                    }
+                    {~mode.isKindOf(SequenceableCollection)} {~subdivisions.collect{|i|
+                        v.wrapAt(~mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
+                    }};
+                } { v }
+            };
+
+            ~arpDurs = (~arpDurs ? 1).asArray;
+            ~arpDurs = ~subdivisions.collect{|i| ~arpDurs.wrapAt(i)}.normalizeSum.integrate;
+            ~arpDurs = ~arpDurs - ~arpDurs[0];
+            ~lag = ~lag ? 0;
+            ~lag = ~arpDurs * ~sustain.value / thisThread.clock.tempo + ~lag;
+            // ~lag = ~subdivisions.collect{|i| i / ~subdivisions * ~sustain.value / thisThread.clock.tempo} + ~lag;
+            ~sustain = ~sustain / ~subdivisions * (~legatoEach ? 1).max(0.1);
+            ~amp = ~amp.value * (~ampSieve ? 1);
+
+            this.prChainEventType(server);
+        });
+
         Event.addEventType(\presetEcho, {arg server;
             ~chainedEventTypes = [\preset, \echo];
+            this.prChainEventType(server);
+        });
+
+        Event.addEventType(\presetArp, {arg server;
+            ~chainedEventTypes = [\preset, \arp];
+            this.prChainEventType(server);
+        });
+
+        Event.addEventType(\arpEcho, {arg server;
+            var maxSize, arpKeys;
+            var numNotes, echoTime, echoCoef, lag, echoPan;
+
+            numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
+            echoTime = ~echoTime ?? {thisThread.clock.beatDur / 2};
+            echoCoef = ~echoCoef ? 0.5;
+
+            echoPan = case
+            {~echoPan.isKindOf(Array)} {~echoPan}
+            {~echoPan.asSymbol == \rand} {{1.0.rand2} ! (numNotes - 1)}
+            {~echoPan.asSymbol == \gauss} {{1.0.sum3rand} ! (numNotes - 1)}
+            {~echoPan.asSymbol == \lr} {[-1, 1]}
+            {~echoPan.asSymbol == \rl} {[1, -1]};
+            echoPan = echoPan ? [0];
+            echoPan = (~echoSpread ? 1) * echoPan;
+
+            lag = ~lag ? 0;
+            ~lag = lag.abs + Array.series(numNotes, 0, echoTime.abs);
+            ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
+            ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
+
+            arpKeys = ~arpKeys ? this.defaultArpKeys;
+            maxSize = currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size}.max(1);
+            ~subdivisions = (~subdivisions.value ? maxSize).max(1).asInteger;
+
+            ~hop = (~hop ? 1).asArray;
+            ~skip = (~skip ? 0).asArray;
+            ~jump = (~jump ? 0).asArray;
+            ~jump = ~subdivisions.div(maxSize).collect{|i| ~jump.wrapAt(i)};
+            ~jump = [0] ++ ~jump;
+            ~octavate = (~octavate ? 0).asArray.collect(_.asInteger);
+            ~octavate = ~subdivisions.div(maxSize).collect{|i| ~octavate.wrapAt(i) * (i + 1)};
+            ~octavate = [0] ++ ~octavate;
+            ~octave = ~octave + ~subdivisions.collect{|i| ~octavate.wrapAt(i.div(maxSize))};
+            ~octave = ~octave.dupEach(numNotes);
+
+            currentEnvironment.keysValuesChange{|k, v|
+                var result;
+                if(v.isKindOf(Array) and: {arpKeys.includes(k)}){
+                    var scrambled, size;
+                    size = v.size;
+                    scrambled = v.scramble;
+                    case
+                    {~mode == \fwd} {result = ~subdivisions.collect{|i|
+                        v.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                    }.dupEach(numNotes)}
+                    {~mode == \rev} {result = ~subdivisions.collect{|i|
+                        v.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
+                    }.dupEach(numNotes)}
+                    {~mode == \fwdRev} {result = ~subdivisions.collect{|i|
+                        v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                    }.dupEach(numNotes)}
+                    {~mode == \revFwd} {result = ~subdivisions.collect{|i|
+                        v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
+                    }.dupEach(numNotes)}
+                    {~mode == \up} {result = ~subdivisions.collect{|i|
+                        v.sort.wrapAt((i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
+                    }.dupEach(numNotes)}
+                    {~mode == \down} {result = ~subdivisions.collect{|i|
+                        v.sort.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
+                    }.dupEach(numNotes)}
+                    {~mode == \upDown} {result = ~subdivisions.collect{|i|
+                        v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                    }.dupEach(numNotes)}
+                    {~mode == \downUp} {result = ~subdivisions.collect{|i|
+                        v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
+                    }.dupEach(numNotes)}
+                    {~mode == \shuf} {result = ~subdivisions.collect{|i| scrambled.wrapAt(i)}.dupEach(numNotes)}
+                    {~mode == \rand} {result = ~subdivisions.collect{|i| v.choose}.dupEach(numNotes)}
+                    {~mode == \xrand} {
+                        var index = size.rand;
+                        result = ~subdivisions.collect{|i|
+                            index = (index + (size - 1).rand + 1) % size;
+                            v.at(index)
+                        }.dupEach(numNotes)
+                    }
+                    {~mode == \wrand} {
+                        result = ~subdivisions.collect{|i| v.wchoose(~weights ? (1 ! size / size))}.dupEach(numNotes)
+                    }
+                    {~mode.isKindOf(SequenceableCollection)} {result = ~subdivisions.collect{|i|
+                        v.wrapAt(~mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
+                    }.dupEach(numNotes)};
+
+                } { result = v };
+                result;
+            };
+
+            ~arpDurs = (~arpDurs ? 1).asArray;
+            ~arpDurs = ~subdivisions.collect{|i| ~arpDurs.wrapAt(i)}.normalizeSum.integrate;
+            ~arpDurs = ~arpDurs - ~arpDurs[0];
+            ~lag = ~arpDurs * ~sustain.value / thisThread.clock.tempo +.x ~lag;
+            // ~lag.postln;
+            // ~lag = ~subdivisions.collect{|i| i / ~subdivisions * ~sustain.value / thisThread.clock.tempo} +.x ~lag;
+            ~amp = ~subdivisions.collect{ ~amp }.flat * (~ampSieve ? 1);
+            ~pan = ~subdivisions.collect{ ~pan }.flat;
+            ~legatoEach = ~subdivisions.collect{ ~legatoEach }.flat;
+            ~sustain = ~sustain / ~subdivisions * (~legatoEach ? 1).max(0.1);
+
+            this.prChainEventType(server);
+        });
+
+        Event.addEventType(\presetArpEcho, {arg server;
+            ~chainedEventTypes = [\preset, \arpEcho];
             this.prChainEventType(server);
         });
     }

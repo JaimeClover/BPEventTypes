@@ -52,7 +52,7 @@ SynthPreset : Synth {
         var desc, preset, defaults, name, variant;
         #name, variant = defName.asString.split($.);
         variant !? {"SynthPreset can't access variants. Using default values instead".warn};
-        desc = SynthDescLib.at(name);
+        desc = SynthDescLib.at(name.asSymbol);
         preset = Preset.build(presetName, desc, useKeyOverrides);
         defaults = desc.controlDict.collect(_.defaultValue).asEvent;
 
