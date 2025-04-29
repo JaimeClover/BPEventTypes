@@ -5,6 +5,7 @@ EventTypes {
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
     classvar <>alternateTuning;
+    classvar <>eventTypesDict;
 
 
     *useAlternateTuning {
@@ -72,6 +73,9 @@ EventTypes {
 
 
         // add custom event types:
+
+        eventTypesDict = ();
+
         /*Event.addEventType(\tunedNote, {arg server;
             var makeScaleFrom, degreeToNote, noteToMidinote;
 
@@ -119,7 +123,7 @@ EventTypes {
             this.prChainEventType(server);
         });*/
 
-        Event.addEventType(\preset, {arg server;
+        eventTypesDict.put(\preset, {arg server;
             var synthLib, desc, defaults, localPreset, globalPreset, preset;
             var useDefaults, useOverrides;
 
@@ -154,11 +158,11 @@ EventTypes {
             this.prChainEventType(server);
         });
 
-        Event.addEventType(\echo, {arg server;
+        eventTypesDict.put(\echo, {arg server;
             var numNotes, echoTime, echoCoef, lag, echoPan;
 
             numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
-            echoTime = ~echoTime ?? {thisThread.clock.beatDur / 2};
+            echoTime = ~echoTime ?? {thisThread.clock.tempo.reciprocal / 2};
             echoCoef = ~echoCoef ? 0.5;
 
             echoPan = case
@@ -178,11 +182,11 @@ EventTypes {
             this.prChainEventType(server);
         });
 
-        Event.addEventType(\arp, {arg server;
+        eventTypesDict.put(\arp, {arg server;
             var maxSize, arpKeys;
 
             arpKeys = ~arpKeys ? this.defaultArpKeys;
-            maxSize = currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size}.max(1);
+            maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
             ~subdivisions = (~subdivisions.value ? maxSize).max(1);
 
             ~hop = (~hop ? 1).asArray;
@@ -193,53 +197,58 @@ EventTypes {
             ~octavate = (~octavate ? 0).asArray.collect(_.asInteger);
             ~octavate = ~subdivisions.div(maxSize).collect{|i| ~octavate.wrapAt(i) * (i + 1)};
             ~octavate = [0] ++ ~octavate;
-            ~octave = ~octave + ~subdivisions.collect{|i| ~octavate.wrapAt(i.div(maxSize))};
+            ~maxOctaves = ~maxOctaves ? 8;
+            ~octavate = ~octavate.fold2(~maxOctaves);
+            ~octaves = ~octaves ? ~octavate;
+            ~octave = ~octave + ~subdivisions.collect{|i| ~octaves.wrapAt(i.div(maxSize))};
 
             currentEnvironment.keysValuesChange{|k, v|
                 if(v.isKindOf(Array) and: {arpKeys.includes(k)}){
-                    var scrambled, result, size;
+                    var scrambled, result, size, mode;
                     size = v.size;
                     scrambled = v.scramble;
+                    mode = ~mode ? \fwd;
                     result = case
-                    {~mode == \fwd} {~subdivisions.collect{|i|
+                    {mode == \fwd} {~subdivisions.collect{|i|
                         v.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
                     }}
-                    {~mode == \rev} {~subdivisions.collect{|i|
+                    {mode == \rev} {~subdivisions.collect{|i|
                         v.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
                     }}
-                    {~mode == \fwdRev} {~subdivisions.collect{|i|
+                    {mode == \fwdRev} {~subdivisions.collect{|i|
                         v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
                     }}
-                    {~mode == \revFwd} {~subdivisions.collect{|i|
+                    {mode == \revFwd} {~subdivisions.collect{|i|
                         v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
                     }}
-                    {~mode == \up} {~subdivisions.collect{|i|
+                    {mode == \up} {~subdivisions.collect{|i|
                         v.sort.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
                     }}
-                    {~mode == \down} {~subdivisions.collect{|i|
+                    {mode == \down} {~subdivisions.collect{|i|
                         v.sort.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
                     }}
-                    {~mode == \upDown} {~subdivisions.collect{|i|
+                    {mode == \upDown} {~subdivisions.collect{|i|
                         v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
                     }}
-                    {~mode == \downUp} {~subdivisions.collect{|i|
+                    {mode == \downUp} {~subdivisions.collect{|i|
                         v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
                     }}
-                    {~mode == \shuf} {~subdivisions.collect{|i| scrambled.wrapAt(i)}}
-                    {~mode == \rand} {~subdivisions.collect{|i| v.choose}}
-                    {~mode == \xrand} {
+                    {mode == \shuf} {~subdivisions.collect{|i| scrambled.wrapAt(i)}}
+                    {mode == \rand} {~subdivisions.collect{|i| v.choose}}
+                    {mode == \xrand} {
                         var index = size.rand;
                         ~subdivisions.collect{|i|
                             index = (index + (size - 1).rand + 1) % size;
                             v.at(index)
                         }
                     }
-                    {~mode == \wrand} {
+                    {mode == \wrand} {
                         ~subdivisions.collect{|i| v.wchoose(~weights ? (1 ! size / size))}
                     }
-                    {~mode.isKindOf(SequenceableCollection)} {~subdivisions.collect{|i|
+                    {mode.isKindOf(SequenceableCollection)} {~subdivisions.collect{|i|
                         v.wrapAt(~mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
                     }};
+                    result;
                 } { v }
             };
 
@@ -255,22 +264,22 @@ EventTypes {
             this.prChainEventType(server);
         });
 
-        Event.addEventType(\presetEcho, {arg server;
+        eventTypesDict.put(\presetEcho, {arg server;
             ~chainedEventTypes = [\preset, \echo];
             this.prChainEventType(server);
         });
 
-        Event.addEventType(\presetArp, {arg server;
+        eventTypesDict.put(\presetArp, {arg server;
             ~chainedEventTypes = [\preset, \arp];
             this.prChainEventType(server);
         });
 
-        Event.addEventType(\arpEcho, {arg server;
+        eventTypesDict.put(\arpEcho, {arg server;
             var maxSize, arpKeys;
             var numNotes, echoTime, echoCoef, lag, echoPan;
 
             numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
-            echoTime = ~echoTime ?? {thisThread.clock.beatDur / 2};
+            echoTime = ~echoTime ?? {thisThread.clock.tempo.reciprocal / 2};
             echoCoef = ~echoCoef ? 0.5;
 
             echoPan = case
@@ -288,7 +297,7 @@ EventTypes {
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
 
             arpKeys = ~arpKeys ? this.defaultArpKeys;
-            maxSize = currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size}.max(1);
+            maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
             ~subdivisions = (~subdivisions.value ? maxSize).max(1).asInteger;
 
             ~hop = (~hop ? 1).asArray;
@@ -303,54 +312,53 @@ EventTypes {
             ~octave = ~octave.dupEach(numNotes);
 
             currentEnvironment.keysValuesChange{|k, v|
-                var result;
                 if(v.isKindOf(Array) and: {arpKeys.includes(k)}){
-                    var scrambled, size;
+                    var scrambled, result, size, mode;
                     size = v.size;
                     scrambled = v.scramble;
-                    case
-                    {~mode == \fwd} {result = ~subdivisions.collect{|i|
+                    mode = ~mode ? \fwd;
+                    result = case
+                    {mode == \fwd} {~subdivisions.collect{|i|
                         v.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
-                    }.dupEach(numNotes)}
-                    {~mode == \rev} {result = ~subdivisions.collect{|i|
+                    }}
+                    {mode == \rev} {~subdivisions.collect{|i|
                         v.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
-                    }.dupEach(numNotes)}
-                    {~mode == \fwdRev} {result = ~subdivisions.collect{|i|
+                    }}
+                    {mode == \fwdRev} {~subdivisions.collect{|i|
                         v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
-                    }.dupEach(numNotes)}
-                    {~mode == \revFwd} {result = ~subdivisions.collect{|i|
+                    }}
+                    {mode == \revFwd} {~subdivisions.collect{|i|
                         v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
-                    }.dupEach(numNotes)}
-                    {~mode == \up} {result = ~subdivisions.collect{|i|
-                        v.sort.wrapAt((i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
-                    }.dupEach(numNotes)}
-                    {~mode == \down} {result = ~subdivisions.collect{|i|
+                    }}
+                    {mode == \up} {~subdivisions.collect{|i|
+                        v.sort.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                    }}
+                    {mode == \down} {~subdivisions.collect{|i|
                         v.sort.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
-                    }.dupEach(numNotes)}
-                    {~mode == \upDown} {result = ~subdivisions.collect{|i|
+                    }}
+                    {mode == \upDown} {~subdivisions.collect{|i|
                         v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
-                    }.dupEach(numNotes)}
-                    {~mode == \downUp} {result = ~subdivisions.collect{|i|
+                    }}
+                    {mode == \downUp} {~subdivisions.collect{|i|
                         v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
-                    }.dupEach(numNotes)}
-                    {~mode == \shuf} {result = ~subdivisions.collect{|i| scrambled.wrapAt(i)}.dupEach(numNotes)}
-                    {~mode == \rand} {result = ~subdivisions.collect{|i| v.choose}.dupEach(numNotes)}
-                    {~mode == \xrand} {
+                    }}
+                    {mode == \shuf} {~subdivisions.collect{|i| scrambled.wrapAt(i)}}
+                    {mode == \rand} {~subdivisions.collect{|i| v.choose}}
+                    {mode == \xrand} {
                         var index = size.rand;
-                        result = ~subdivisions.collect{|i|
+                        ~subdivisions.collect{|i|
                             index = (index + (size - 1).rand + 1) % size;
                             v.at(index)
-                        }.dupEach(numNotes)
+                        }
                     }
-                    {~mode == \wrand} {
-                        result = ~subdivisions.collect{|i| v.wchoose(~weights ? (1 ! size / size))}.dupEach(numNotes)
+                    {mode == \wrand} {
+                        ~subdivisions.collect{|i| v.wchoose(~weights ? (1 ! size / size))}
                     }
-                    {~mode.isKindOf(SequenceableCollection)} {result = ~subdivisions.collect{|i|
+                    {mode.isKindOf(SequenceableCollection)} {~subdivisions.collect{|i|
                         v.wrapAt(~mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
-                    }.dupEach(numNotes)};
-
-                } { result = v };
-                result;
+                    }};
+                    result;
+                } { v }
             };
 
             ~arpDurs = (~arpDurs ? 1).asArray;
@@ -367,10 +375,40 @@ EventTypes {
             this.prChainEventType(server);
         });
 
-        Event.addEventType(\presetArpEcho, {arg server;
+        eventTypesDict.put(\presetArpEcho, {arg server;
             ~chainedEventTypes = [\preset, \arpEcho];
             this.prChainEventType(server);
         });
+    }
+
+    *includeEventType { arg name, alias, overwrite = false;
+        if( name.isNil ) { EventTypes.includeAllEventTypes } {
+            if( name.isString ) { name = name.asSymbol };
+            if( alias.isString ) { alias = alias.asSymbol };
+            name = name.asArray;
+            alias = alias.asArray;
+            if( alias.size != name.size ) { "name and alias must be the same size".error; ^nil } {
+                name.do {|nm, i|
+                    if( overwrite.not && Event.partialEvents.playerEvent.eventTypes.keys.includes(alias[i]) ) {
+                        var msg = "% event type already exists. Use 'overwrite = true' to overwrite it.".format(alias[i]);
+                        msg.warn;
+                    } {
+                        Event.addEventType(alias[i] ? nm, eventTypesDict[nm]);
+                    }
+                }
+            }
+        }
+    }
+
+    *includeAllEventTypes { arg overwrite = false;
+        eventTypesDict.keysValuesDo {|key, val|
+            if( overwrite.not && Event.partialEvents.playerEvent.eventTypes.keys.includes(key) ) {
+                var msg = "% event type already exists. Use 'overwrite = true' to overwrite it.".format(key);
+                msg.warn;
+            } {
+                Event.addEventType(key, val)
+            }
+        }
     }
 
     *initKeyOverrides {
