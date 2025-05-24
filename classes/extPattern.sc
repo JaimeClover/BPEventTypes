@@ -14,3 +14,15 @@
         ^Pclump(Pkey(\numEchoes) + 1 * (Pkey(\subdivisions) ? Pkey(\freq).value.size), this);
     }
 }
+
++ Pbind {
+    *doesNotUnderstand { |selector ... args|
+        Event.eventTypes.keys.includes(selector).if {
+            var newArgs = [\type, selector] ++ args;
+            args.debug("args");
+            newArgs.debug("newArgs");
+            ^this.new(*newArgs);
+        };
+        ^super.doesNotUnderstand(selector, args);
+	}
+}
