@@ -19,10 +19,9 @@
     *doesNotUnderstand { |selector ... args|
         Event.eventTypes.keys.includes(selector).if {
             var newArgs = [\type, selector] ++ args;
-            args.debug("args");
-            newArgs.debug("newArgs");
             ^this.new(*newArgs);
         };
         ^super.doesNotUnderstand(selector, args);
 	}
 }
+
