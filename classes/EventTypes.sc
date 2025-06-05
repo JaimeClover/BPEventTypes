@@ -276,7 +276,7 @@ EventTypes {
 
         eventTypesDict.put(\arpEcho, {arg server;
             var maxSize, arpKeys;
-            var numNotes, echoTime, echoCoef, lag, echoPan;
+            var numNotes, echoTime, echoCoef, lag, echoPan, legatoEach;
 
             numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
             echoTime = ~echoTime ?? {thisThread.clock.tempo.reciprocal / 2};
@@ -295,6 +295,7 @@ EventTypes {
             ~lag = lag.abs + Array.series(numNotes, 0, echoTime.abs);
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
+            legatoEach = (~legatoEach ? 1).dup(numNotes);
 
             arpKeys = ~arpKeys ? this.defaultArpKeys;
             maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
@@ -357,7 +358,7 @@ EventTypes {
                     {mode.isKindOf(SequenceableCollection)} {~subdivisions.collect{|i|
                         v.wrapAt(~mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
                     }};
-                    result;
+                    result.dupEach(numNotes);
                 } { v }
             };
 
@@ -369,8 +370,8 @@ EventTypes {
             // ~lag = ~subdivisions.collect{|i| i / ~subdivisions * ~sustain.value / thisThread.clock.tempo} +.x ~lag;
             ~amp = ~subdivisions.collect{ ~amp }.flat * (~ampSieve ? 1);
             ~pan = ~subdivisions.collect{ ~pan }.flat;
-            ~legatoEach = ~subdivisions.collect{ ~legatoEach }.flat;
-            ~sustain = ~sustain / ~subdivisions * (~legatoEach ? 1).max(0.1);
+            legatoEach = ~subdivisions.collect{ ~legatoEach }.flat;
+            ~sustain = ~sustain / ~subdivisions.max(1) * ~legatoEach.max(0.1);
 
             this.prChainEventType(server);
         });
