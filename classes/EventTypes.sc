@@ -163,7 +163,7 @@ EventTypes {
         });
 
         eventTypesDict.put(\echo, {arg server;
-            var numNotes, echoTime, echoCoef, timingOffset, echoPan;
+            var numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
 
             numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
             echoTime = ~echoTime ? 0.5;
@@ -179,7 +179,10 @@ EventTypes {
             echoPan = (~echoSpread ? 1) * echoPan;
 
             timingOffset = ~timingOffset ? 0;
-            ~timingOffset = timingOffset + Array.series(numNotes, 0, echoTime.abs);
+            echoRhythm = (~echoRhythm ? 1).asArray.wrapExtend(numNotes).normalizeSum * numNotes;
+            echoRhythm = [0] ++ echoRhythm.integrate;
+            ~timingOffset = echoTime.abs * echoRhythm;
+            // ~timingOffset = Array.series(numNotes, 0, echoTime.abs) * echoRhythm + timingOffset;
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
 
@@ -281,7 +284,7 @@ EventTypes {
 
         eventTypesDict.put(\arpEcho, {arg server;
             var maxSize, arpKeys;
-            var numNotes, echoTime, echoCoef, timingOffset, echoPan, legatoEach;
+            var numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
 
             numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
             echoTime = ~echoTime ? 0.5;
@@ -297,10 +300,13 @@ EventTypes {
             echoPan = (~echoSpread ? 1) * echoPan;
 
             timingOffset = ~timingOffset ? 0;
-            ~timingOffset = timingOffset + Array.series(numNotes, 0, echoTime.abs);
+            echoRhythm = (~echoRhythm ? 1).asArray.wrapExtend(numNotes).normalizeSum * numNotes;
+            echoRhythm = [0] ++ echoRhythm.integrate;
+            ~timingOffset = echoTime.abs * echoRhythm;
+            // ~timingOffset = timingOffset + Array.series(numNotes, 0, echoTime.abs);
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
-            legatoEach = (~legatoEach ? 1).asArray.wrapExtend(numNotes);
+            ~legatoEach = (~legatoEach ? 1).asArray.wrapExtend(numNotes);
 
             arpKeys = ~arpKeys ? this.defaultArpKeys;
             maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
@@ -376,8 +382,8 @@ EventTypes {
             // ~timingOffset = ~subdivisions.collect{|i| i / ~subdivisions * ~legato} +.x ~timingOffset;
             ~amp = (~subdivisions.collect{ ~amp * (~echoSieve ? 1) } * (~arpSieve ? 1)).flat * (~ampSieve ? 1);
             ~pan = ~subdivisions.collect{ ~pan }.flat;
-            legatoEach = ~subdivisions.collect{ ~legatoEach }.flat;
-            ~sustain = ~sustain / ~subdivisions.max(1) * ~legatoEach.max(0.1);
+            ~legatoEach = ~subdivisions.collect{ ~legatoEach }.flat;
+            ~sustain = ~sustain / ~subdivisions.max(1) * ~legatoEach.max(0.01 * ~subdivisions * numNotes);
 
             this.prChainEventType(server);
         });
