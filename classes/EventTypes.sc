@@ -5,7 +5,7 @@ EventTypes {
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
     classvar <>alternateTuning;
-    classvar <>eventTypesDict;
+    classvar <>eventTypesDict, <>parentEventsDict;
 
 
     *useAlternateTuning {
@@ -79,6 +79,7 @@ EventTypes {
         // add custom event types:
 
         eventTypesDict = ();
+        parentEventsDict = ();
 
         /*Event.addEventType(\tunedNote, {arg server;
             var makeScaleFrom, degreeToNote, noteToMidinote;
@@ -181,9 +182,11 @@ EventTypes {
 
             timingOffset = ~timingOffset ? 0;
             echoRhythm = (~echoRhythm ? 1).asArray.wrapExtend(numNotes).normalizeSum * numNotes;
-            echoRhythm = [0] ++ echoRhythm.keep(numEchoes).integrate;
-            ~timingOffset = echoTime.abs * echoRhythm + timingOffset;
+            echoRhythm = [0] ++ echoRhythm.drop(-1).integrate;
+            ~timingOffset = timingOffset +.x (echoTime.abs * echoRhythm);
+            // ~timingOffset = echoTime.abs * echoRhythm +.x timingOffset;
             // ~timingOffset = Array.series(numNotes, 0, echoTime.abs) * echoRhythm + timingOffset;
+
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
 
@@ -191,7 +194,7 @@ EventTypes {
         });
 
         eventTypesDict.put(\arp, {arg server;
-            var maxSize, arpKeys;
+            var maxSize, arpKeys, timingOffset, arpRhythm;
 
             arpKeys = ~arpKeys ? this.defaultArpKeys;
             maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
@@ -261,17 +264,28 @@ EventTypes {
             ~octaves = ~octaves ? ~octavate;
             ~octave = ~octave + ~subdivisions.collect{|i| ~octaves.wrapAt(i.div(maxSize))};
 
+            /*
             ~arpRhythm = (~arpRhythm ? 1).asArray;
-            ~arpRhythm = ~subdivisions.collect{|i| ~arpRhythm.wrapAt(i)}.normalizeSum.integrate;
+            // ~arpRhythm = ~subdivisions.collect{|i| ~arpRhythm.wrapAt(i)}.normalizeSum.integrate;
+            ~arpRhythm = ~arpRhythm.wrapExtend(~subdivisions).normalizeSum.integrate;
             ~arpRhythm = ~arpRhythm - ~arpRhythm[0];
             ~timingOffset = ~timingOffset ? 0;
             ~timingOffset = ~arpRhythm * ~legato + ~timingOffset;
+            */
+
+            timingOffset = ~timingOffset ? 0;
+            arpRhythm = (~arpRhythm ? 1).asArray.wrapExtend(~subdivisions).normalizeSum;
+            arpRhythm = [0] ++ arpRhythm.drop(-1).integrate;
+            ~timingOffset = timingOffset +.x (~legato * arpRhythm);
+            // ~timingOffset = ~legato * arpRhythm +.x timingOffset;
             // ~timingOffset = ~subdivisions.collect{|i| i / ~subdivisions * ~legato} + ~timingOffset;
             ~sustain = ~sustain / ~subdivisions * (~legatoEach ? 1).max(0.03 * thisThread.clock.tempo);
             ~amp = ~amp.value * (~ampSieve ? 1);
 
             this.prChainEventType(server);
         });
+
+        parentEventsDict.put(\arp, (legato: 1));
 
         eventTypesDict.put(\presetEcho, {arg server;
             ~chainedEventTypes = [\preset, \echo];
@@ -306,6 +320,7 @@ EventTypes {
             echoRhythm = [0] ++ echoRhythm.keep(numEchoes).integrate;
             ~timingOffset = echoTime.abs * echoRhythm + timingOffset;
             // ~timingOffset = timingOffset + Array.series(numNotes, 0, echoTime.abs);
+
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
             ~legatoEach = (~legatoEach ? 1).asArray.wrapExtend(numNotes);
@@ -411,7 +426,7 @@ EventTypes {
                         var msg = "% event type already exists. Use 'overwrite = true' to overwrite it.".format(alias[i]);
                         msg.warn;
                     } {
-                        Event.addEventType(alias[i] ? nm, eventTypesDict[nm]);
+                        Event.addEventType(alias[i] ? nm, eventTypesDict[nm], parentEventsDict[nm]);
                     }
                 }
             }
@@ -424,7 +439,7 @@ EventTypes {
                 var msg = "% event type already exists. Use 'overwrite = true' to overwrite it.".format(key);
                 msg.warn;
             } {
-                Event.addEventType(key, val)
+                Event.addEventType(key, val, parentEventsDict[key])
             }
         }
     }
