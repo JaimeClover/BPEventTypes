@@ -36,6 +36,7 @@ definitionList::
     ## \octaves || used instead of octavate, specify a list of octave modifiers per repition of the chord.
     ## \arpRhythm || a list of the relative durations of each note.
     ## \legatoEach || duration of each note (1). Values greater than 1 will create overlapping notes.
+    ## \arpSieve || a list of amplitudes for each note in the arpeggio.
     ## \weights || a list of weights used in code::\wrand:: mode (see the \mode key below).
     ## \mode || determines the order of the notes in the chord (\fwd). You may provide a list of indexes or use one of the following symbols:
     table::
@@ -58,8 +59,8 @@ The following composite event types are also included. They combine functionalit
 List::
   ## \presetEcho
   ## \presetArp
-  ## \arpEcho
-  ## \presetArpEcho
+  ## \echoArp
+  ## \presetEchoArp
 ::
 
 CLASSMETHODS::
