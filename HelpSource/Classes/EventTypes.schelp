@@ -4,27 +4,78 @@ categories:: Streams-Patterns-Events>Events
 related:: Tutorials/Presets, Classes/SynthPreset, Classes/Preset, Classes/Event, Classes/PresetChain, Classes/PC
 
 DESCRIPTION::
-When this class is initialized, it adds the following event types:
-definitionList::
-## \preset || provides a way for users to use synth presets in Events and Patterns (see the link::Tutorials/Presets:: tutorial for more code examples).
-## \echo || allows users to add language-side delay effects in Events and Patterns.
-## \presetEcho || combines the functionality of the above two event types.
-::
+This class contains a dictionary of code::\play:: functions, which can be added as link::Overviews/Event_types::. To include any of these event types, call code::EventTypes.includeEventType(\anEventType)::, or code::EventTypes.includeAllEventTypes:: to include them all.
 
+All of the below event types should be thought of as extensions to the default code::\note:: event, which means they give you access to all the keys in the default parent event (degree, note, db, legato, etc.), and ultimately they simply produce modified versions of teletype::\note:: events. The following event types are currently available:
+
+definitionList::
+  ## \preset || Use synth presets (see the link::Tutorials/Presets:: tutorial for code examples). Adds the following keys:
+  table::
+    ## \preset || which preset to use.
+    ## \useControlDefaults || a flag indicating whether the SynthDef's control default values should be used, instead of values from the default parent event (see link::Classes/EventTypes#-useControlDefaults::).
+    ## \useKeyOverrides || a flag indicating whether certain keys in an Event will override certain other keys in the preset (see link::Classes/EventTypes#-useKeyOverrides::).
+  ::
+  ## \echo || Add language-side delay effects. Adds the following keys (default behavior in parentheses):
+  table::
+    ## \numEchoes || number of echoes to play, not including the initial note (0).
+    ## \echoTime || time in beats between each echo (0.5).
+    ## \echoCoef || amplitude coefficient for exponential decay (0.5).
+    ## \echoPan || type of panning modulation to use (none).
+    ## \echoSpread || amount of stereo spread (1).
+    ## \echoRhythm || an array of relative durations for each echo, which serves as a modifier to \echoTime.
+  ::
+  ## \arp || Turns chords (lists of notes) into arpeggios. Adds the following keys (default behavior in parentheses):
+  table::
+    ## \arpKeys || the keys that determine which pitches are included in the arpeggio (by default, this is any key that is used to calculate freq).
+    ## \subdivisions || number of arpeggiated notes per chord (by default, uses the chord size).
+    ## \hop || how much the index is advanced per note (1).
+    ## \skip || an offset to the index, per subdivision (0).
+    ## \jump || an offset to the index, per chord repetition (0).
+    ## \octavate || determines if the chord is played in different octaves for each repetition (0).
+    ## \maxOctave || the maximum range of octaves that can be covered by octavating (8).
+    ## \octaves || used instead of octavate, specify a list of octave modifiers per repition of the chord.
+    ## \arpRhythm || a list of the relative durations of each note.
+    ## \legatoEach || duration of each note (1). Values greater than 1 will create overlapping notes.
+    ## \weights || a list of weights used in code::\wrand:: mode (see the \mode key below).
+    ## \mode || determines the order of the notes in the chord (\fwd). You may provide a list of indexes or use one of the following symbols:
+    table::
+      ## \fwd || go forward through the list of pitches.
+      ## \rev || go in reverse order through the list of pitches.
+      ## \up || go in ascending order through the list of pitches.
+      ## \down || go in descending order through the list of pitches.
+      ## \shuf || shuffle the list of pitches (does not repeat a note until the whole chord has been played).
+      ## \rand || choose a random pitch (repeats are possible).
+      ## \xrand || choose a random pitch, but never repeat the last choice.
+      ## \wrand || weighted randomness, using weights provided by the code::\weights:: key.
+      ## \upDown || go up, then down.
+      ## \downUp || go down, then up.
+      ## \fwdRev || go forward, then reverse.
+      ## \revFwd || go reverse, then forward.
+    ::
+  ::
+::
+The following composite event types are also included. They combine functionality from 2 or more of the above event types.
+List::
+  ## \presetEcho
+  ## \presetArp
+  ## \arpEcho
+  ## \presetArpEcho
+::
 
 CLASSMETHODS::
 
 METHOD:: useKeyOverrides
-When using the \preset event type, this is a global flag indicating whether certain keys in an Event will override certain other keys in the preset, e.g. whether pitch-related keys like \degree will override \freq (see code examples below). You can override this value in an Event or Pbind by setting the \useKeyOverrides key.
+When using the \preset event type, this is a global flag indicating whether certain keys in an Event will override certain other keys in the preset, e.g. whether pitch-related keys like \degree will override \freq. You can override this value in an Event or Pbind by setting the \useKeyOverrides key. The default value is code::true::. See code examples in the link::Tutorials/Presets:: tutorial.
 
 
 METHOD:: keyOverrides
 
-returns:: When using the \preset event type, this returns a dictionary specifying which keys will override which other keys, e.g. code::mtranspose: [\freq, \detunedFreq, \midinote, \note]:: means that if you use the \mtranspose key in a Pbind, it will override the \freq, \detunedFreq, \midinote, and \note keys in the preset. This behavior can be turned off by setting the \useKeyOverrides key to code::false::, or it can be turned off globally by running code::EventTypes.useKeyOverrides = false::
+When using the \preset event type, this returns a dictionary specifying which keys will override which other keys, e.g. code::mtranspose: [\freq, \detunedFreq, \midinote, \note]:: means that if you use the \mtranspose key in a Pbind, it will override the \freq, \detunedFreq, \midinote, and \note keys in the preset. This behavior can be turned off by setting the \useKeyOverrides key to code::false::, or it can be turned off globally by running code::EventTypes.useKeyOverrides = false::.
 
 
 METHOD:: useControlDefaults
-When using the \preset event type, this is a global flag indicating whether the SynthDef's control default values should be used, instead of the normal behavior in which some values are determined by the defaultParentEvent. You can override this value in an Event or Pbind by setting the \useControlDefaults key.
+
+When using the \preset event type, this is a global flag indicating whether the SynthDef's control default values should be used, instead of the normal behavior in which some values are determined by the defaultParentEvent. You can override this value in an Event or Pbind by setting the \useControlDefaults key. The default value is code::false::. See more code examples in the link::Tutorials/Presets:: tutorial.
 
 DISCUSSION::
 code::

@@ -163,16 +163,17 @@ EventTypes {
         });
 
         eventTypesDict.put(\echo, {arg server;
-            var numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
+            var numEchoes, numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
 
-            numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
+            numEchoes = (~numEchoes ? 0).asInteger.max(0);
+            numNotes = numEchoes + 1;
             echoTime = ~echoTime ? 0.5;
             echoCoef = ~echoCoef ? 0.5;
 
             echoPan = case
             {~echoPan.isKindOf(Array)} {~echoPan}
-            {~echoPan.asSymbol == \rand} {{1.0.rand2} ! (numNotes - 1)}
-            {~echoPan.asSymbol == \gauss} {{1.0.sum3rand} ! (numNotes - 1)}
+            {~echoPan.asSymbol == \rand} {{1.0.rand2} ! (numEchoes)}
+            {~echoPan.asSymbol == \gauss} {{1.0.sum3rand} ! (numEchoes)}
             {~echoPan.asSymbol == \lr} {[-1, 1]}
             {~echoPan.asSymbol == \rl} {[1, -1]};
             echoPan = echoPan ? [0];
@@ -180,8 +181,8 @@ EventTypes {
 
             timingOffset = ~timingOffset ? 0;
             echoRhythm = (~echoRhythm ? 1).asArray.wrapExtend(numNotes).normalizeSum * numNotes;
-            echoRhythm = [0] ++ echoRhythm.integrate;
-            ~timingOffset = echoTime.abs * echoRhythm;
+            echoRhythm = [0] ++ echoRhythm.keep(numEchoes).integrate;
+            ~timingOffset = echoTime.abs * echoRhythm + timingOffset;
             // ~timingOffset = Array.series(numNotes, 0, echoTime.abs) * echoRhythm + timingOffset;
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
@@ -194,13 +195,13 @@ EventTypes {
 
             arpKeys = ~arpKeys ? this.defaultArpKeys;
             maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
-            ~subdivisions = (~subdivisions.value ? maxSize).max(1);
+            ~subdivisions = (~subdivisions.value ? maxSize).max(1).asInteger;
 
             ~hop = (~hop ? 1).asArray;
             ~skip = (~skip ? 0).asArray;
             ~jump = (~jump ? 0).asArray;
             ~jump = ~subdivisions.div(maxSize).collect{|i| ~jump.wrapAt(i)};
-            ~jump = [0] ++ ~jump;
+            // ~jump = [0] ++ ~jump;
 
             currentEnvironment.keysValuesChange{|k, v|
                 if(v.isKindOf(Array) and: {arpKeys.includes(k)}){
@@ -246,7 +247,7 @@ EventTypes {
                         ~subdivisions.collect{|i| v.wchoose(~weights ? (1 ! size / size))}
                     }
                     {mode.isKindOf(SequenceableCollection)} {~subdivisions.collect{|i|
-                        v.wrapAt(~mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
+                        v.wrapAt(mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
                     }};
                     result;
                 } { v }
@@ -260,11 +261,11 @@ EventTypes {
             ~octaves = ~octaves ? ~octavate;
             ~octave = ~octave + ~subdivisions.collect{|i| ~octaves.wrapAt(i.div(maxSize))};
 
-            ~arpDurs = (~arpDurs ? 1).asArray;
-            ~arpDurs = ~subdivisions.collect{|i| ~arpDurs.wrapAt(i)}.normalizeSum.integrate;
-            ~arpDurs = ~arpDurs - ~arpDurs[0];
+            ~arpRhythm = (~arpRhythm ? 1).asArray;
+            ~arpRhythm = ~subdivisions.collect{|i| ~arpRhythm.wrapAt(i)}.normalizeSum.integrate;
+            ~arpRhythm = ~arpRhythm - ~arpRhythm[0];
             ~timingOffset = ~timingOffset ? 0;
-            ~timingOffset = ~arpDurs * ~legato + ~timingOffset;
+            ~timingOffset = ~arpRhythm * ~legato + ~timingOffset;
             // ~timingOffset = ~subdivisions.collect{|i| i / ~subdivisions * ~legato} + ~timingOffset;
             ~sustain = ~sustain / ~subdivisions * (~legatoEach ? 1).max(0.03 * thisThread.clock.tempo);
             ~amp = ~amp.value * (~ampSieve ? 1);
@@ -284,16 +285,17 @@ EventTypes {
 
         eventTypesDict.put(\arpEcho, {arg server;
             var maxSize, arpKeys;
-            var numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
+            var numEchoes, numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
 
-            numNotes = (~numEchoes ? 0).asInteger.max(0) + 1;
+            numEchoes = (~numEchoes ? 0).asInteger.max(0);
+            numNotes = numEchoes + 1;
             echoTime = ~echoTime ? 0.5;
             echoCoef = ~echoCoef ? 0.5;
 
             echoPan = case
             {~echoPan.isKindOf(Array)} {~echoPan}
-            {~echoPan.asSymbol == \rand} {{1.0.rand2} ! (numNotes - 1)}
-            {~echoPan.asSymbol == \gauss} {{1.0.sum3rand} ! (numNotes - 1)}
+            {~echoPan.asSymbol == \rand} {{1.0.rand2} ! (numEchoes)}
+            {~echoPan.asSymbol == \gauss} {{1.0.sum3rand} ! (numEchoes)}
             {~echoPan.asSymbol == \lr} {[-1, 1]}
             {~echoPan.asSymbol == \rl} {[1, -1]};
             echoPan = echoPan ? [0];
@@ -301,8 +303,8 @@ EventTypes {
 
             timingOffset = ~timingOffset ? 0;
             echoRhythm = (~echoRhythm ? 1).asArray.wrapExtend(numNotes).normalizeSum * numNotes;
-            echoRhythm = [0] ++ echoRhythm.integrate;
-            ~timingOffset = echoTime.abs * echoRhythm;
+            echoRhythm = [0] ++ echoRhythm.keep(numEchoes).integrate;
+            ~timingOffset = echoTime.abs * echoRhythm + timingOffset;
             // ~timingOffset = timingOffset + Array.series(numNotes, 0, echoTime.abs);
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
@@ -371,13 +373,16 @@ EventTypes {
             ~octavate = (~octavate ? 0).asArray.collect(_.asInteger);
             ~octavate = ~subdivisions.div(maxSize).collect{|i| ~octavate.wrapAt(i) * (i + 1)};
             ~octavate = [0] ++ ~octavate;
+            ~maxOctaves = ~maxOctaves ? 8;
+            ~octavate = ~octavate.fold2(~maxOctaves);
+            ~octaves = ~octaves ? ~octavate;
             ~octave = ~octave + ~subdivisions.collect{|i| ~octavate.wrapAt(i.div(maxSize))};
             ~octave = ~octave.keep(~subdivisions).dupEach(numNotes);
 
-            ~arpDurs = (~arpDurs ? 1).asArray;
-            ~arpDurs = ~subdivisions.collect{|i| ~arpDurs.wrapAt(i)}.normalizeSum.integrate;
-            ~arpDurs = ~arpDurs - ~arpDurs[0];
-            ~timingOffset = ~arpDurs * ~legato +.x ~timingOffset;
+            ~arpRhythm = (~arpRhythm ? 1).asArray;
+            ~arpRhythm = ~subdivisions.collect{|i| ~arpRhythm.wrapAt(i)}.normalizeSum.integrate;
+            ~arpRhythm = ~arpRhythm - ~arpRhythm[0];
+            ~timingOffset = ~arpRhythm * ~legato +.x ~timingOffset;
             // ~timingOffset.postln;
             // ~timingOffset = ~subdivisions.collect{|i| i / ~subdivisions * ~legato} +.x ~timingOffset;
             ~amp = (~subdivisions.collect{ ~amp * (~echoSieve ? 1) } * (~arpSieve ? 1)).flat * (~ampSieve ? 1);
