@@ -182,8 +182,8 @@ EventTypes {
 
             timingOffset = ~timingOffset ? 0;
             echoRhythm = (~echoRhythm ? 1).asArray.wrapExtend(numNotes).normalizeSum * numNotes;
-            echoRhythm = [0] ++ echoRhythm.drop(-1).integrate;
-            ~timingOffset = timingOffset +.x (echoTime.abs * echoRhythm);
+            echoRhythm = [0] ++ echoRhythm.drop(-1).integrate * echoTime.abs;
+            ~timingOffset = timingOffset +.x echoRhythm;
             // ~timingOffset = echoTime.abs * echoRhythm +.x timingOffset;
             // ~timingOffset = Array.series(numNotes, 0, echoTime.abs) * echoRhythm + timingOffset;
 
@@ -275,12 +275,13 @@ EventTypes {
 
             timingOffset = ~timingOffset ? 0;
             arpRhythm = (~arpRhythm ? 1).asArray.wrapExtend(~subdivisions).normalizeSum;
-            arpRhythm = [0] ++ arpRhythm.drop(-1).integrate;
-            ~timingOffset = timingOffset +.x (~legato * arpRhythm);
+            arpRhythm = [0] ++ arpRhythm.drop(-1).integrate * ~legato;
+            ~timingOffset = timingOffset +.x arpRhythm;
             // ~timingOffset = ~legato * arpRhythm +.x timingOffset;
             // ~timingOffset = ~subdivisions.collect{|i| i / ~subdivisions * ~legato} + ~timingOffset;
             ~sustain = ~sustain / ~subdivisions * (~legatoEach ? 1).max(0.03 * thisThread.clock.tempo);
-            ~amp = ~amp.value * (~ampSieve ? 1);
+            ~amp = ~amp.value *.x (~arpSieve ? 1).asArray.wrapExtend(~subdivisions);
+            ~amp = ~amp.wrapExtend(~timingOffset.size);
 
             this.prChainEventType(server);
         });
@@ -297,6 +298,12 @@ EventTypes {
             this.prChainEventType(server);
         });
 
+        eventTypesDict.put(\echoArp, {arg server;
+            ~chainedEventTypes = [\echo, \arp];
+            this.prChainEventType(server);
+        });
+
+        /*
         eventTypesDict.put(\arpEcho, {arg server;
             var maxSize, arpKeys;
             var numEchoes, numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
@@ -407,11 +414,19 @@ EventTypes {
 
             this.prChainEventType(server);
         });
+        */
 
+        eventTypesDict.put(\presetEchoArp, {arg server;
+            ~chainedEventTypes = [\preset, \echo, \arp];
+            this.prChainEventType(server);
+        });
+
+        /*
         eventTypesDict.put(\presetArpEcho, {arg server;
             ~chainedEventTypes = [\preset, \arpEcho];
             this.prChainEventType(server);
         });
+        */
     }
 
     *includeEventType { arg name, alias, overwrite = false;
