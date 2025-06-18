@@ -107,19 +107,20 @@ EventTypes {
         });
 
         eventTypesDict.put(\echo, {arg server;
-            var numEchoes, numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
+            var numEchoes, numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm, panSymbol;
 
             numEchoes = (~numEchoes ? 0).asInteger.max(0);
             numNotes = numEchoes + 1;
             echoTime = ~echoTime ? 0.5;
             echoCoef = ~echoCoef ? 0.5;
+            panSymbol = ~echoPan.asSymbol;
 
             echoPan = case
             {~echoPan.isKindOf(Array)} {~echoPan}
-            {~echoPan.asSymbol == \rand} {{1.0.rand2} ! (numEchoes)}
-            {~echoPan.asSymbol == \gauss} {{1.0.sum3rand} ! (numEchoes)}
-            {~echoPan.asSymbol == \lr} {[-1, 1]}
-            {~echoPan.asSymbol == \rl} {[1, -1]};
+            {panSymbol == \rand} {{1.0.rand2} ! (numEchoes)}
+            {panSymbol == \gauss} {{1.0.sum3rand} ! (numEchoes)}
+            {panSymbol == \lr} {[-1, 1]}
+            {panSymbol == \rl} {[1, -1]};
             echoPan = echoPan ? [0];
             echoPan = (~echoSpread ? 1) * echoPan;
 
@@ -129,7 +130,7 @@ EventTypes {
             ~timingOffset = timingOffset +.x echoRhythm;
 
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
-            ~pan = [0] ++ echoPan.wrapExtend(numNotes - 1) + ~pan;
+            ~pan = [0] ++ echoPan.wrapExtend(numEchoes) + ~pan;
 
             this.prChainEventType(server);
         });
