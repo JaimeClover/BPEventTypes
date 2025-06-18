@@ -4,7 +4,7 @@ EventTypes {
     classvar <>useKeyOverrides = true;
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
-    classvar <>alternateTuning;
+    classvar <>alternateTuning, <>panFunctions;
     classvar <>eventTypesDict, <>parentEventsDict;
 
 
@@ -55,7 +55,7 @@ EventTypes {
         );
 
 
-        // initialize class variables used by the \preset event type:
+        // initialize class variables used by the \preset, \echo, and \arp event types:
         this.initKeyOverrides;
         defaultSymbols = [\x];
         presetSymbols = [\preset, \p];
@@ -64,10 +64,15 @@ EventTypes {
             \octave, \root, \detune, \harmonic,
             \degree, \note, \midinote, \freq
         ];
+        panFunctions = (
+            rand: {|size| {1.0.rand2} ! size},
+            gauss: {|size| {1.0.sum3rand} ! size},
+            lr: {[-1, 1]},
+            rl: {[1, -1]}
+        );
 
 
         // add custom event types:
-
         eventTypesDict = ();
         parentEventsDict = ();
 
@@ -107,21 +112,15 @@ EventTypes {
         });
 
         eventTypesDict.put(\echo, {arg server;
-            var numEchoes, numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm, panSymbol;
+            var numEchoes, numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
 
             numEchoes = (~numEchoes ? 0).asInteger.max(0);
             numNotes = numEchoes + 1;
             echoTime = ~echoTime ? 0.5;
             echoCoef = ~echoCoef ? 0.5;
 
-            panSymbol = ~echoPan.asSymbol;
-            echoPan = case
-            {~echoPan.isKindOf(Array)} {~echoPan}
-            {panSymbol == \rand} {{1.0.rand2} ! numEchoes}
-            {panSymbol == \gauss} {{1.0.sum3rand} ! numEchoes}
-            {panSymbol == \lr} {[-1, 1]}
-            {panSymbol == \rl} {[1, -1]};
-            echoPan = echoPan ? [0];
+            echoPan = panFunctions.atFail(~echoPan.asSymbol, ~echoPan);
+            echoPan = echoPan.value(numEchoes) ? [0];
             echoPan = (~echoSpread ? 1) * echoPan;
             ~pan = ~pan +.x ([0] ++ echoPan.wrapExtend(numEchoes));
 
@@ -136,7 +135,7 @@ EventTypes {
         });
 
         eventTypesDict.put(\arp, {arg server;
-            var maxSize, arpKeys, timingOffset, arpRhythm, panSymbol, arpPan;
+            var maxSize, arpKeys, timingOffset, arpRhythm, arpPan;
 
             arpKeys = ~arpKeys ? this.defaultArpKeys;
             maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
@@ -205,14 +204,8 @@ EventTypes {
             ~octaves = ~octaves ? ~octavate;
             ~octave = ~octave + ~subdivisions.collect{|i| ~octaves.wrapAt(i.div(maxSize))};
 
-            panSymbol = ~arpPan.asSymbol;
-            arpPan = case
-            {~arpPan.isKindOf(Array)} {~arpPan}
-            {panSymbol == \rand} {{1.0.rand2} ! ~subdivisions}
-            {panSymbol == \gauss} {{1.0.sum3rand} ! ~subdivisions}
-            {panSymbol == \lr} {[-1, 1]}
-            {panSymbol == \rl} {[1, -1]};
-            arpPan = arpPan ? [0];
+            arpPan = panFunctions.atFail(~arpPan.asSymbol, ~arpPan);
+            arpPan = arpPan.value(~subdivisions) ? [0];
             arpPan = (~arpSpread ? 1) * arpPan;
             ~pan = ~pan +.x arpPan.wrapExtend(~subdivisions);
 
