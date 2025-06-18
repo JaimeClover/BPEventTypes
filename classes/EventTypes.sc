@@ -130,6 +130,7 @@ EventTypes {
             ~timingOffset = timingOffset +.x echoRhythm;
 
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
+            ~amp = ~amp * (~echoSieve ? 1).asArray.wrapExtend(numNotes);
 
             this.prChainEventType(server);
         });
