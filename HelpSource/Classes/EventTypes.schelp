@@ -23,6 +23,7 @@ definitionList::
     ## \echoPan || type of panning modulation to use (none).
     ## \echoSpread || amount of stereo spread (1).
     ## \echoRhythm || an array of relative durations for each echo, which serves as a modifier to \echoTime.
+    ## \echoSieve || an array of amplitude modifiers for each echo.
   ::
   ## \arp || Turns chords (lists of notes) into arpeggios. Adds the following keys (default behavior in parentheses):
   table::
@@ -32,7 +33,7 @@ definitionList::
     ## \skip || an offset to the index, per subdivision (0).
     ## \jump || an offset to the index, per chord repetition (0).
     ## \octavate || determines if the chord is played in different octaves for each repetition (0).
-    ## \maxOctave || the maximum range of octaves that can be covered by octavating (8).
+    ## \maxOctaves || the maximum range of octaves that can be covered by octavating (8).
     ## \octaves || used instead of octavate, specify a list of octave modifiers per repition of the chord.
     ## \arpRhythm || a list of the relative durations of each note.
     ## \legatoEach || duration of each note (1). Values greater than 1 will create overlapping notes.

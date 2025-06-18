@@ -1,22 +1,29 @@
 EventTypes {
 
     classvar <keyOverrides, <>defaultArpKeys;
-    classvar <>useKeyOverrides = true;
+    classvar <>useKeyOverrides = true, <useAlternateTuning = false;
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
     classvar <>alternateTuning, <>panFunctions;
     classvar <>eventTypesDict, <>parentEventsDict;
 
 
-    *useAlternateTuning {
-        Event.addParentType(\note,
-            Event.parentTypes[\note] ++ alternateTuning.copy;
-        )
-    }
-
-    *useDefaultTuning {
-        Event.parentTypes[\note].removeAt(\note);
-        Event.parentTypes[\note].removeAt(\midinote);
+    // normally the \note key assumes you are using ET12 tuning.
+    // this method allows the \note key to access other tunings.
+    *useAlternateTuning_ { arg val;
+        useAlternateTuning = val.asBoolean;
+        if(val) {
+            Event.addParentType(\note,
+                Event.parentTypes[\note] ++ alternateTuning.copy;
+            )
+        } {
+            Event.parentTypes[\note] !? {|parentEvent|
+                // parentEvent = Event.parentTypes[\note] ? ();
+                parentEvent.removeAt(\note);
+                parentEvent.removeAt(\midinote);
+                // Event.parentTypes[\note].removeAt(\midinote);
+            }
+        }
     }
 
     *initClass {
