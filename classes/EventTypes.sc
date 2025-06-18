@@ -218,23 +218,25 @@ EventTypes {
 
         parentEventsDict.put(\arp, (legato: 1));
 
+        // The following are composite event types, which chain together multiple of the above event types.
+        // ~chainedEventTypes should be in reverse order of execution.
         eventTypesDict.put(\presetEcho, {arg server;
-            ~chainedEventTypes = [\preset, \echo];
+            ~chainedEventTypes = [\echo, \preset];
             this.prChainEventType(server);
         });
 
         eventTypesDict.put(\presetArp, {arg server;
-            ~chainedEventTypes = [\preset, \arp];
+            ~chainedEventTypes = [\arp, \preset];
             this.prChainEventType(server);
         });
 
         eventTypesDict.put(\echoArp, {arg server;
-            ~chainedEventTypes = [\echo, \arp];
+            ~chainedEventTypes = [\arp, \echo];
             this.prChainEventType(server);
         });
 
         eventTypesDict.put(\presetEchoArp, {arg server;
-            ~chainedEventTypes = [\preset, \echo, \arp];
+            ~chainedEventTypes = [\arp, \echo, \preset];
             this.prChainEventType(server);
         });
     }
@@ -293,6 +295,9 @@ EventTypes {
     }
 
     *resolveOverrides {|overEvent, underEvent, exclusionList|
+        // This method is called by the \preset event type if useKeyOverrides is true.
+        // It causes "high-level" keys in the event to override "low-level" keys in the preset.
+        // e.g. If the event has the \degree key, the preset's \freq key will be ignored.
         keyOverrides.keysValuesDo {|key, overriddenKeys|
             if(overEvent.keys.includes(key)) {
                 if(exclusionList.includes(overEvent[key]).not) {
@@ -303,10 +308,8 @@ EventTypes {
     }
 
     *prChainEventType {arg server;
-        var nextEventType, chainedEventTypes;
-        chainedEventTypes = ~chainedEventTypes.copy ? [];
-        nextEventType = chainedEventTypes.obtain(0, \note);
-        ~chainedEventTypes = chainedEventTypes[1..];
+        // chain together multiple event types, ending with the \note type.
+        var nextEventType = ~chainedEventTypes.pop ? \note;
         currentEnvironment.parent = Event.parentTypes.atFail(nextEventType, Event.default);
         ~eventTypes[nextEventType].value(server);
     }
