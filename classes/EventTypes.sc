@@ -113,16 +113,17 @@ EventTypes {
             numNotes = numEchoes + 1;
             echoTime = ~echoTime ? 0.5;
             echoCoef = ~echoCoef ? 0.5;
-            panSymbol = ~echoPan.asSymbol;
 
+            panSymbol = ~echoPan.asSymbol;
             echoPan = case
             {~echoPan.isKindOf(Array)} {~echoPan}
-            {panSymbol == \rand} {{1.0.rand2} ! (numEchoes)}
-            {panSymbol == \gauss} {{1.0.sum3rand} ! (numEchoes)}
+            {panSymbol == \rand} {{1.0.rand2} ! numEchoes}
+            {panSymbol == \gauss} {{1.0.sum3rand} ! numEchoes}
             {panSymbol == \lr} {[-1, 1]}
             {panSymbol == \rl} {[1, -1]};
             echoPan = echoPan ? [0];
             echoPan = (~echoSpread ? 1) * echoPan;
+            ~pan = ~pan +.x ([0] ++ echoPan.wrapExtend(numEchoes));
 
             timingOffset = ~timingOffset ? 0;
             echoRhythm = (~echoRhythm ? 1).asArray.wrapExtend(numNotes).normalizeSum * numNotes;
@@ -130,13 +131,12 @@ EventTypes {
             ~timingOffset = timingOffset +.x echoRhythm;
 
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
-            ~pan = [0] ++ echoPan.wrapExtend(numEchoes) + ~pan;
 
             this.prChainEventType(server);
         });
 
         eventTypesDict.put(\arp, {arg server;
-            var maxSize, arpKeys, timingOffset, arpRhythm;
+            var maxSize, arpKeys, timingOffset, arpRhythm, panSymbol, arpPan;
 
             arpKeys = ~arpKeys ? this.defaultArpKeys;
             maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
@@ -205,6 +205,17 @@ EventTypes {
             ~octaves = ~octaves ? ~octavate;
             ~octave = ~octave + ~subdivisions.collect{|i| ~octaves.wrapAt(i.div(maxSize))};
 
+            panSymbol = ~arpPan.asSymbol;
+            arpPan = case
+            {~arpPan.isKindOf(Array)} {~arpPan}
+            {panSymbol == \rand} {{1.0.rand2} ! ~subdivisions}
+            {panSymbol == \gauss} {{1.0.sum3rand} ! ~subdivisions}
+            {panSymbol == \lr} {[-1, 1]}
+            {panSymbol == \rl} {[1, -1]};
+            arpPan = arpPan ? [0];
+            arpPan = (~arpSpread ? 1) * arpPan;
+            ~pan = ~pan +.x arpPan.wrapExtend(~subdivisions);
+
             timingOffset = ~timingOffset ? 0;
             arpRhythm = (~arpRhythm ? 1).asArray.wrapExtend(~subdivisions).normalizeSum;
             arpRhythm = [0] ++ arpRhythm.drop(-1).integrate * ~legato;
@@ -216,6 +227,8 @@ EventTypes {
             this.prChainEventType(server);
         });
 
+        // by default arpeggios should be evenly spaced across the entire duration of the event.
+        // therefore, the default legato needs to be 1.
         parentEventsDict.put(\arp, (legato: 1));
 
         // The following are composite event types, which chain together multiple of the above event types.
