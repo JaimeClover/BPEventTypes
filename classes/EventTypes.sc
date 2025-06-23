@@ -138,7 +138,8 @@ EventTypes {
             ~amp = ~amp * (~echoSieve ? 1).asArray.wrapExtend(numNotes);
 
             ~chainedEventTypes = ~chainedEventTypes ? [];
-            if(~chainedEventTypes.includes(\arp).not) {
+            ~arpeggiateEchoes = ~arpeggiateEchoes ? false;
+            if(~chainedEventTypes.includes(\arp).not && ~arpeggiateEchoes.not) {
                 currentEnvironment.keysValuesChange{|k, v|
                     var pitchKeys = ~arpKeys ? this.defaultPitchKeys;
                     if(v.isKindOf(Array) and: {pitchKeys.includes(k)}) {
