@@ -79,7 +79,6 @@ EventTypes {
 
         // add custom event types:
         eventTypesDict = ();
-        parentEventsDict = ();
 
         eventTypesDict.put(\preset, {arg server;
             var synthLib, desc, defaults, localPreset, globalPreset, preset;
@@ -272,7 +271,7 @@ EventTypes {
                         var msg = "% event type already exists. Use 'overwrite = true' to overwrite it.".format(alias[i]);
                         msg.warn;
                     } {
-                        Event.addEventType(alias[i] ? nm, eventTypesDict[nm], parentEventsDict[nm]);
+                        Event.addEventType(alias[i] ? nm, eventTypesDict[nm]);
                     }
                 }
             }
@@ -285,7 +284,7 @@ EventTypes {
                 var msg = "% event type already exists. Use 'overwrite = true' to overwrite it.".format(key);
                 msg.warn;
             } {
-                Event.addEventType(key, val, parentEventsDict[key])
+                Event.addEventType(key, val)
             }
         }
     }
