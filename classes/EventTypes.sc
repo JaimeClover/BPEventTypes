@@ -1,6 +1,6 @@
 EventTypes {
 
-    classvar <keyOverrides, <>defaultArpKeys;
+    classvar <keyOverrides, <>defaultPitchKeys;
     classvar <>useKeyOverrides = true, <useAlternateTuning = false;
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
@@ -18,10 +18,8 @@ EventTypes {
             )
         } {
             Event.parentTypes[\note] !? {|parentEvent|
-                // parentEvent = Event.parentTypes[\note] ? ();
                 parentEvent.removeAt(\note);
                 parentEvent.removeAt(\midinote);
-                // Event.parentTypes[\note].removeAt(\midinote);
             }
         }
     }
@@ -66,7 +64,7 @@ EventTypes {
         this.initKeyOverrides;
         defaultSymbols = [\x];
         presetSymbols = [\preset, \p];
-        defaultArpKeys = Set[
+        defaultPitchKeys = Set[
             \mtranspose, \gtranspose, \ctranspose,
             \octave, \root, \detune, \harmonic,
             \degree, \note, \midinote, \freq
@@ -139,13 +137,23 @@ EventTypes {
             ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
             ~amp = ~amp * (~echoSieve ? 1).asArray.wrapExtend(numNotes);
 
+            ~chainedEventTypes = ~chainedEventTypes ? [];
+            if(~chainedEventTypes.includes(\arp).not) {
+                currentEnvironment.keysValuesChange{|k, v|
+                    var pitchKeys = ~arpKeys ? this.defaultPitchKeys;
+                    if(v.isKindOf(Array) and: {pitchKeys.includes(k)}) {
+                        v.dupEach(numNotes)
+                    } { v }
+                }
+            };
+
             this.prChainEventType(server);
         });
 
         eventTypesDict.put(\arp, {arg server;
             var maxSize, arpKeys, timingOffset, arpRhythm, arpPan;
 
-            arpKeys = ~arpKeys ? this.defaultArpKeys;
+            arpKeys = ~arpKeys ? this.defaultPitchKeys;
             maxSize = (currentEnvironment.select{|v, k| arpKeys.includes(k)}.maxValue{|item, i| item.size} ? 1).max(1);
             ~subdivisions = (~subdivisions.value ? maxSize).max(1).asInteger;
 
