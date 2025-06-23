@@ -228,18 +228,14 @@ EventTypes {
 
             timingOffset = ~timingOffset ? 0;
             arpRhythm = (~arpRhythm ? 1).asArray.wrapExtend(~subdivisions).normalizeSum;
-            arpRhythm = [0] ++ arpRhythm.drop(-1).integrate * ~legato;
+            arpRhythm = [0] ++ arpRhythm.drop(-1).integrate * (~arpLegato ? 1);
             ~timingOffset = timingOffset +.x arpRhythm;
-            ~sustain = ~sustain / ~subdivisions * (~legatoEach ? 1).max(0.03 * thisThread.clock.tempo);
+            ~sustain = ~sustain / ~subdivisions;
             ~amp = ~amp.value *.x (~arpSieve ? 1).asArray.wrapExtend(~subdivisions);
             ~amp = ~amp.wrapExtend(~timingOffset.size);
 
             this.prChainEventType(server);
         });
-
-        // by default arpeggios should be evenly spaced across the entire duration of the event.
-        // therefore, the default legato needs to be 1.
-        parentEventsDict.put(\arp, (legato: 1));
 
         // The following are composite event types, which chain together multiple of the above event types.
         // ~chainedEventTypes should be in reverse order of execution.
