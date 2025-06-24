@@ -4,8 +4,8 @@ EventTypes {
     classvar <>useKeyOverrides = true, <useAlternateTuning = false;
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
-    classvar <>alternateTuning, <>panFunctions;
-    classvar <>eventTypesDict, <>parentEventsDict;
+    classvar <>alternateTuning, <panFunctions, <arpFunctions;
+    classvar <eventTypesDict;
 
 
     // normally the \note key assumes you are using ET12 tuning.
@@ -69,11 +69,51 @@ EventTypes {
             \octave, \root, \detune, \harmonic,
             \degree, \note, \midinote, \freq
         ];
+
+        // panFunctions are used by the \echo and \arp event types
+        // to determine panning behavior of echoed and arpeggiated notes.
+        // user can add custom panning functions with EventTypes.panFunctions[\custom] = {|size| ...}
         panFunctions = (
             rand: {|size| {1.0.rand2} ! size},
             gauss: {|size| {1.0.sum3rand} ! size},
             lr: {[-1, 1]},
             rl: {[1, -1]}
+        );
+
+        // arpFunctions are used by the \arp event type
+        // to determine how arpeggios respond to the \mode key.
+        // user can add custom arp functions with EventTypes.arpFunctions[\custom] = {|array| ...}
+        arpFunctions = (
+            fwd: { arg array, method = \wrapAt;
+                var size = array.size;
+                ~subdivisions.collect{|i|
+                    array.perform(method, i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
+                }
+            },
+            rev: { arg array; arpFunctions[\fwd].value(array.reverse) },
+            fwdRev: { arg array; arpFunctions[\fwd].value(array, \foldAt) },
+            revFwd: { arg array; arpFunctions[\fwd].value(array.reverse, \foldAt) },
+            up: { arg array; arpFunctions[\fwd].value(array.sort) },
+            down: { arg array; arpFunctions[\fwd].value(array.sort{ |a, b| a > b }) },
+            upDown: { arg array; arpFunctions[\fwd].value(array.sort, \foldAt) },
+            downUp: { arg array; arpFunctions[\fwd].value(array.sort{ |a, b| a > b }, \foldAt) },
+            shuf: { arg array;
+                var scrambled = array.scramble;
+                ~subdivisions.collect{|i| scrambled.wrapAt(i)}
+            },
+            rand: { arg array; ~subdivisions.collect{|i| array.choose} },
+            xrand: { arg array;
+                var size = array.size;
+                var index = size.rand;
+                ~subdivisions.collect{|i|
+                    index = (index + (size - 1).rand + 1) % size;
+                    array.at(index)
+                }
+            },
+            wrand: { arg array;
+                var size = array.size;
+                ~subdivisions.collect{|i| array.wchoose(~weights ? (1 ! size / size))}
+            }
         );
 
 
@@ -164,51 +204,10 @@ EventTypes {
 
             currentEnvironment.keysValuesChange{|k, v|
                 if(v.isKindOf(Array) and: {arpKeys.includes(k)}){
-                    var scrambled, result, size, mode;
-                    size = v.size;
-                    scrambled = v.scramble;
-                    mode = ~mode ? \fwd;
-                    result = case
-                    {mode == \fwd} {~subdivisions.collect{|i|
-                        v.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
-                    }}
-                    {mode == \rev} {~subdivisions.collect{|i|
-                        v.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
-                    }}
-                    {mode == \fwdRev} {~subdivisions.collect{|i|
-                        v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
-                    }}
-                    {mode == \revFwd} {~subdivisions.collect{|i|
-                        v.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
-                    }}
-                    {mode == \up} {~subdivisions.collect{|i|
-                        v.sort.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
-                    }}
-                    {mode == \down} {~subdivisions.collect{|i|
-                        v.sort.wrapAt(~skip.wrapAt(i).neg - 1 - (i * ~hop.wrapAt(i)) - ~jump.wrapAt(i.div(size)))
-                    }}
-                    {mode == \upDown} {~subdivisions.collect{|i|
-                        v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)))
-                    }}
-                    {mode == \downUp} {~subdivisions.collect{|i|
-                        v.sort.foldAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size)) + size - 1)
-                    }}
-                    {mode == \shuf} {~subdivisions.collect{|i| scrambled.wrapAt(i)}}
-                    {mode == \rand} {~subdivisions.collect{|i| v.choose}}
-                    {mode == \xrand} {
-                        var index = size.rand;
-                        ~subdivisions.collect{|i|
-                            index = (index + (size - 1).rand + 1) % size;
-                            v.at(index)
-                        }
-                    }
-                    {mode == \wrand} {
-                        ~subdivisions.collect{|i| v.wchoose(~weights ? (1 ! size / size))}
-                    }
-                    {mode.isKindOf(SequenceableCollection)} {~subdivisions.collect{|i|
-                        v.wrapAt(mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(size))))
-                    }};
-                    result;
+                    var mode = ~mode ? \fwd;
+                    if(mode.isKindOf(SequenceableCollection)) { ~subdivisions.collect{|i|
+                        v.wrapAt(mode.wrapAt(i * ~hop.wrapAt(i) + ~skip.wrapAt(i) + ~jump.wrapAt(i.div(v.size))))
+                    }} { arpFunctions[mode].value(v) }
                 } { v }
             };
 
@@ -227,7 +226,7 @@ EventTypes {
 
             timingOffset = ~timingOffset ? 0;
             arpRhythm = (~arpRhythm ? 1).asArray.wrapExtend(~subdivisions).normalizeSum;
-            arpRhythm = [0] ++ arpRhythm.drop(-1).integrate * (~arpLegato ? 1);
+            arpRhythm = [0] ++ arpRhythm.drop(-1).integrate * (~arpLegato ? 1) * ~dur * ~stretch;
             ~timingOffset = timingOffset +.x arpRhythm;
             ~sustain = ~sustain / ~subdivisions;
             ~amp = ~amp.value *.x (~arpSieve ? 1).asArray.wrapExtend(~subdivisions);
