@@ -54,36 +54,6 @@ List::
 
 CLASSMETHODS::
 
-METHOD:: useKeyOverrides
-When using the \preset event type, this is a global flag indicating whether certain keys in an Event will override certain other keys in the preset, e.g. whether pitch-related keys like \degree will override \freq. You can override this value in an Event or Pbind by setting the \useKeyOverrides key. The default value is code::true::. See code examples in the link::Tutorials/Presets:: tutorial.
-
-
-METHOD:: keyOverrides
-
-When using the \preset event type, this returns a dictionary specifying which keys will override which other keys, e.g. code::mtranspose: [\freq, \detunedFreq, \midinote, \note]:: means that if you use the \mtranspose key in a Pbind, it will override the \freq, \detunedFreq, \midinote, and \note keys in the preset. This behavior can be turned off by setting the \useKeyOverrides key to code::false::, or it can be turned off globally by running code::EventTypes.useKeyOverrides = false::.
-
-
-METHOD:: useControlDefaults
-
-When using the \preset event type, this is a global flag indicating whether the SynthDef's control default values should be used, instead of the normal behavior in which some values are determined by the defaultParentEvent. You can override this value in an Event or Pbind by setting the \useControlDefaults key. The default value is code::false::. See more code examples in the link::Tutorials/Presets:: tutorial.
-
-DISCUSSION::
-code::
-EventTypes.includeEventType(\preset);
-
-(// always use control default values
-EventTypes.useControlDefaults = true;
-Pbind(\type, \preset).play; // pitch = 440 Hz
-)
-
-// compare to the default behavior:
-
-(// the default parent event determines the pitch
-EventTypes.useControlDefaults = false;
-Pbind(\type, \preset).play; // pitch = middle C
-)
-::
-
 METHOD:: panFunctions
 
 A dictionary of functions that determine panning behavior in the \echo and \arp event types. Use one of the following symbols in the \echoPan and/or \arpPan key to get the associated behavior:
@@ -120,7 +90,7 @@ arpPan: \rand, \numEchoes: 4, \echoPan: \rl, \echoTime: 1).play;
 )
 ::
 
-You can add custom pan functions like so:
+You can add custom pan functions:
 code::
 // left, center, right, center:
 EventTypes.panFunctions[\lcrc] = {[-1, 0, 1, 0]};
@@ -173,5 +143,54 @@ Pbind(
     \mode, Pseq([\fwd, \rev, \rand, \shuf]),
     \callback, {~degree.postln}
 ).play;
+)
+::
+
+You can add custom arp functions:
+code::
+(
+// play even indices, then odd indices.
+// [0, 1, 2, 3] becomes [0, 2, 1, 3]:
+EventTypes.arpFunctions[\evenOdd] = { arg array;
+    array = array.clump(2).flop.flat;
+    EventTypes.arpFunctions[\fwd].value(array)
+};
+
+(type: \arp, degree: [0, 2, 4, 6], mode: \evenOdd).play;
+)
+::
+
+Or use an array in the \mode key to specify the order of indices:
+code::
+(type: \arp, degree: [0, 2, 4, 6], mode: [0, 3, 2, 1]).play;
+::
+
+METHOD:: useKeyOverrides
+When using the \preset event type, this is a global flag indicating whether certain keys in an Event will override certain other keys in the preset, e.g. whether pitch-related keys like \degree will override \freq. You can override this value in an Event or Pbind by setting the \useKeyOverrides key. The default value is code::true::. See code examples in the link::Tutorials/Presets:: tutorial.
+
+
+METHOD:: keyOverrides
+
+When using the \preset event type, this returns a dictionary specifying which keys will override which other keys, e.g. code::mtranspose: [\freq, \detunedFreq, \midinote, \note]:: means that if you use the \mtranspose key in a Pbind, it will override the \freq, \detunedFreq, \midinote, and \note keys in the preset. This behavior can be turned off by setting the \useKeyOverrides key to code::false::, or it can be turned off globally by running code::EventTypes.useKeyOverrides = false::.
+
+
+METHOD:: useControlDefaults
+
+When using the \preset event type, this is a global flag indicating whether the SynthDef's control default values should be used, instead of the normal behavior in which some values are determined by the defaultParentEvent. You can override this value in an Event or Pbind by setting the \useControlDefaults key. The default value is code::false::. See more code examples in the link::Tutorials/Presets:: tutorial.
+
+DISCUSSION::
+code::
+EventTypes.includeEventType(\preset);
+
+(// always use control default values
+EventTypes.useControlDefaults = true;
+Pbind(\type, \preset).play; // pitch = 440 Hz
+)
+
+// compare to the default behavior:
+
+(// the default parent event determines the pitch
+EventTypes.useControlDefaults = false;
+Pbind(\type, \preset).play; // pitch = middle C
 )
 ::
