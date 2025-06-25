@@ -20,10 +20,11 @@ definitionList::
     ## \numEchoes || number of echoes to play, not including the initial note (0).
     ## \echoTime || time in beats between each echo (0.5).
     ## \echoCoef || amplitude coefficient for exponential decay (0.5).
-    ## \echoPan || type of panning modulation to use (none).
+    ## \echoPan || type of panning modulation to use (none). See discussion of the code::panFunctions:: method below for details and examples.
     ## \echoSpread || amount of stereo spread (1).
     ## \echoRhythm || an array of relative durations for each echo, which serves as a modifier to \echoTime.
     ## \echoSieve || an array of amplitude modifiers for each echo.
+    ## \arpeggiateEchoes || a boolean. If true, when playing a chord this will play 1 note of the chord per echo. If false, plays the full chord for each echo (false).
   ::
   ## \arp || Turns chords (lists of notes) into arpeggios. Adds the following keys (default behavior in parentheses):
   table::
@@ -35,25 +36,12 @@ definitionList::
     ## \octavate || determines if the chord is played in different octaves for each repetition (0).
     ## \maxOctaves || the maximum range of octaves that can be covered by octavating (8).
     ## \octaves || used instead of octavate, specify a list of octave modifiers per repition of the chord.
+    ## \arpPan || type of panning modulation to use (none). See discussion of the code::panFunctions:: method below for details and examples.
     ## \arpRhythm || a list of the relative durations of each note.
-    ## \legatoEach || duration of each note (1). Values greater than 1 will create overlapping notes.
+    ## \arpLegato || duration of the arpeggio (1). if > 1, arpeggios will overlap. If < 1, arpeggios underlap.
     ## \arpSieve || a list of amplitudes for each note in the arpeggio.
     ## \weights || a list of weights used in code::\wrand:: mode (see the \mode key below).
-    ## \mode || determines the order of the notes in the chord (\fwd). You may provide a list of indexes or use one of the following symbols:
-    table::
-      ## \fwd || go forward through the list of pitches.
-      ## \rev || go in reverse order through the list of pitches.
-      ## \up || go in ascending order through the list of pitches.
-      ## \down || go in descending order through the list of pitches.
-      ## \shuf || shuffle the list of pitches (does not repeat a note until the whole chord has been played).
-      ## \rand || choose a random pitch (repeats are possible).
-      ## \xrand || choose a random pitch, but never repeat the last choice.
-      ## \wrand || weighted randomness, using weights provided by the code::\weights:: key.
-      ## \upDown || go up, then down.
-      ## \downUp || go down, then up.
-      ## \fwdRev || go forward, then reverse.
-      ## \revFwd || go reverse, then forward.
-    ::
+    ## \mode || determines the order in which arpeggiated notes are played (\fwd). See discussion of the code::arpFunctions:: method below for details and examples.
   ::
 ::
 The following composite event types are also included. They combine functionality from 2 or more of the above event types.
@@ -81,6 +69,8 @@ When using the \preset event type, this is a global flag indicating whether the 
 
 DISCUSSION::
 code::
+EventTypes.includeEventType(\preset);
+
 (// always use control default values
 EventTypes.useControlDefaults = true;
 Pbind(\type, \preset).play; // pitch = 440 Hz
@@ -91,5 +81,97 @@ Pbind(\type, \preset).play; // pitch = 440 Hz
 (// the default parent event determines the pitch
 EventTypes.useControlDefaults = false;
 Pbind(\type, \preset).play; // pitch = middle C
+)
+::
+
+METHOD:: panFunctions
+
+A dictionary of functions that determine panning behavior in the \echo and \arp event types. Use one of the following symbols in the \echoPan and/or \arpPan key to get the associated behavior:
+table::
+  ## \rand || random panning between -1 and 1, uniform distribution.
+  ## \gauss || random pannning between -1 and 1, pseudo-gaussian distribution.
+  ## \lr || ping pong (left, right, left, right, etc.).
+  ## \rl || ping pong (right, left, right, left, etc.).
+::
+
+DISCUSSION::
+code::
+(
+EventTypes.includeEventType([\echo, \arp, \echoArp]);
+
+Server.default.waitForBoot {
+    SynthDef(\ping, { arg freq = 400, pan = 0, amp = 0.2;
+        var sig = SinOsc.ar(freq) * Env.perc(0.01, 0.2).kr(2);
+        Out.ar(0, Pan2.ar(sig, pan, amp));
+    }).add;
+}
+)
+
+// ping-pong echoes:
+(type: \echo, instrument: \ping, numEchoes: 4, echoPan: \lr).play;
+
+// randomly panned arpeggio:
+(type: \arp, instrument: \ping, degree: [0, 2, 4, 6], arpPan: \rand).play;
+
+// using both echoPan and arpPan together (the pan values are summed):
+(
+(type: \echoArp, instrument: \ping, degree: [0, 2, 4, 6],
+arpPan: \rand, \numEchoes: 4, \echoPan: \rl, \echoTime: 1).play;
+)
+::
+
+You can add custom pan functions like so:
+code::
+// left, center, right, center:
+EventTypes.panFunctions[\lcrc] = {[-1, 0, 1, 0]};
+(type: \arp, instrument: \ping, degree: [0, 2, 4, 6], arpPan: \lcrc).play;
+::
+
+Or use an array to specify pan values directly:
+code::
+// gradually pan the arpeggio from left to right:
+(type: \arp, instrument: \ping, degree: [0, 2, 4, 6], arpPan: [-1, -0.3, 0.3, 1]).play;
+::
+
+METHOD:: arpFunctions
+
+A dictionary of functions that determine the order in which arpeggiated notes are played when using the \arp event type. Use one of the following symbols in the \mode key to achieve the desired behavior:
+table::
+  ## \fwd || go forward through the list of pitches.
+  ## \rev || go in reverse order through the list of pitches.
+  ## \up || go in ascending order through the list of pitches.
+  ## \down || go in descending order through the list of pitches.
+  ## \shuf || shuffle the list of pitches (does not repeat a note until the whole chord has been played).
+  ## \rand || choose a random pitch (repeats are possible).
+  ## \xrand || choose a random pitch, but never repeat the last choice.
+  ## \wrand || weighted randomness, using weights provided by the code::\weights:: key.
+  ## \upDown || go up, then down.
+  ## \downUp || go down, then up.
+  ## \fwdRev || go forward, then reverse.
+  ## \revFwd || go reverse, then forward.
+::
+
+DISCUSSION::
+code::
+(
+EventTypes.includeEventType(\arp);
+
+Server.default.waitForBoot {
+    SynthDef(\ping, { arg freq = 400, pan = 0, amp = 0.2;
+        var sig = SinOsc.ar(freq) * Env.perc(0.01, 0.2).kr(2);
+        Out.ar(0, Pan2.ar(sig, pan, amp));
+    }).add;
+}
+)
+
+(
+Pbind(
+    \type, \arp,
+    \instrument, \ping,
+    \degree, [0, 2, 4, 6],
+    \subdivisions, 8,
+    \mode, Pseq([\fwd, \rev, \rand, \shuf]),
+    \callback, {~degree.postln}
+).play;
 )
 ::

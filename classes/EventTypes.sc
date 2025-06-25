@@ -4,7 +4,7 @@ EventTypes {
     classvar <>useKeyOverrides = true, <useAlternateTuning = false;
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
-    classvar <>alternateTuning, <panFunctions, <arpFunctions;
+    classvar alternateTuning, <panFunctions, <arpFunctions;
     classvar <eventTypesDict;
 
 
@@ -264,7 +264,7 @@ EventTypes {
             if( alias.isString ) { alias = alias.asSymbol };
             name = name.asArray;
             alias = alias.asArray;
-            if( alias.size != name.size ) { "name and alias must be the same size".error; ^nil } {
+            if( alias.size > 0 and: {alias.size != name.size} ) { "name and alias must be the same size".error; ^nil } {
                 name.do {|nm, i|
                     if( overwrite.not && Event.partialEvents.playerEvent.eventTypes.keys.includes(alias[i]) ) {
                         var msg = "% event type already exists. Use 'overwrite = true' to overwrite it.".format(alias[i]);
