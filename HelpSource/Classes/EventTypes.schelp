@@ -140,7 +140,9 @@ Pbind(
     \instrument, \ping,
     \degree, [0, 2, 4, 6],
     \subdivisions, 8,
-    \mode, Pseq([\fwd, \rev, \rand, \shuf]),
+    \mode, Pseq([\fwd, \rev, \wrand, \shuf]),
+    // the weights key is used in \wrand mode:
+    \weights, [4, 3, 1, 2].normalizeSum,
     \callback, {~degree.postln}
 ).play;
 )

@@ -5,7 +5,8 @@ EventTypes {
     classvar <>useControlDefaults = false;
     classvar <>defaultSymbols, <>presetSymbols;
     classvar alternateTuning, <panFunctions, <arpFunctions;
-    classvar <eventTypesDict;
+    classvar <eventTypesDict, <>defaultEventType = \note;
+    classvar <>eventChainOrder;
 
 
     // normally the \note key assumes you are using ET12 tuning.
@@ -116,10 +117,32 @@ EventTypes {
             }
         );
 
+        eventChainOrder = [\preset, \echo, \arp, \note, \grain];
 
         // add custom event types:
         eventTypesDict = ();
 
+        // chain together multiple event types:
+        eventTypesDict.put(\chain, { arg server;
+            var nextEventType, autoSortChain, func;
+
+            autoSortChain = ~autoSortChain ? true;
+            ~chainedEventTypes = ~chainedEventTypes ? [];
+            if(autoSortChain) {
+                ~chainedEventTypes = ~chainedEventTypes.sort{|a, b|
+                    var indices = [a, b].collect(eventChainOrder.indexOf(_));
+                    indices[0] < indices[1];
+                    (eventChainOrder.indexOf(a) ? inf) < (eventChainOrder.indexOf(b) ? inf)
+                };
+            };
+            nextEventType = ~chainedEventTypes[0] ? defaultEventType;
+            currentEnvironment.parent = Event.parentTypes.atFail(nextEventType, Event.default);
+            ~chainedEventTypes = ~chainedEventTypes[1..];
+            func = eventTypesDict[nextEventType] ?? {~eventTypes[nextEventType]} ?? {~eventTypes[defaultEventType]};
+            func.value(server);
+        });
+
+        // access synth presets that are saved in a Preset object or in the synthdef's metadata.presets dictionary:
         eventTypesDict.put(\preset, {arg server;
             var synthLib, desc, defaults, localPreset, globalPreset, preset;
             var useDefaults, useOverrides;
@@ -150,18 +173,19 @@ EventTypes {
             };
 
             currentEnvironment = currentEnvironment.reject{|val| presetSymbols.includes(val)};
-            currentEnvironment.proto = (currentEnvironment.proto ?? IdentityDictionary.new).proto_(preset);
+            currentEnvironment = currentEnvironment ++ preset;
 
-            this.prChainEventType(server);
+            eventTypesDict[\chain].value(server);
         });
 
+        // add echoes:
         eventTypesDict.put(\echo, {arg server;
             var numEchoes, numNotes, echoTime, echoCoef, timingOffset, echoPan, echoRhythm;
 
             numEchoes = (~numEchoes ? 0).asInteger.max(0);
             numNotes = numEchoes + 1;
             echoTime = ~echoTime ? 0.5;
-            echoCoef = ~echoCoef ? 0.5;
+            echoCoef = (~echoCoef ? 0.5).asArray;
 
             echoPan = panFunctions.atFail(~echoPan.asSymbol, ~echoPan);
             echoPan = echoPan.value(numEchoes) ? [0];
@@ -171,9 +195,9 @@ EventTypes {
             timingOffset = ~timingOffset ? 0;
             echoRhythm = (~echoRhythm ? 1).asArray.wrapExtend(numNotes).normalizeSum * numNotes;
             echoRhythm = [0] ++ echoRhythm.drop(-1).integrate * echoTime.abs;
-            ~timingOffset = timingOffset +.x echoRhythm;
+            ~timingOffset = timingOffset +.x echoRhythm.wrapExtend(numNotes);
 
-            ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef);
+            ~amp = ~amp.value * Array.geom(numNotes, 1, echoCoef).collect{|echo, i| echo.asArray.wrapAt(i - 1)};
             ~amp = ~amp * (~echoSieve ? 1).asArray.wrapExtend(numNotes);
 
             ~chainedEventTypes = ~chainedEventTypes ? [];
@@ -187,9 +211,10 @@ EventTypes {
                 }
             };
 
-            this.prChainEventType(server);
+            eventTypesDict[\chain].value(server);
         });
 
+        // turn chords into arpeggios:
         eventTypesDict.put(\arp, {arg server;
             var maxSize, arpKeys, timingOffset, arpRhythm, arpPan;
 
@@ -232,30 +257,32 @@ EventTypes {
             ~amp = ~amp.value *.x (~arpSieve ? 1).asArray.wrapExtend(~subdivisions);
             ~amp = ~amp.wrapExtend(~timingOffset.size);
 
-            this.prChainEventType(server);
+            eventTypesDict[\chain].value(server);
         });
 
-        // The following are composite event types, which chain together multiple of the above event types.
-        // ~chainedEventTypes should be in reverse order of execution.
+
+        // The following chain together multiple of the above event types:
+
         eventTypesDict.put(\presetEcho, {arg server;
-            ~chainedEventTypes = [\echo, \preset];
-            this.prChainEventType(server);
+            ~chainedEventTypes = [\preset, \echo];
+            eventTypesDict[\chain].value(server);
         });
 
         eventTypesDict.put(\presetArp, {arg server;
-            ~chainedEventTypes = [\arp, \preset];
-            this.prChainEventType(server);
+            ~chainedEventTypes = [\preset, \arp];
+            eventTypesDict[\chain].value(server);
         });
 
         eventTypesDict.put(\echoArp, {arg server;
-            ~chainedEventTypes = [\arp, \echo];
-            this.prChainEventType(server);
+            ~chainedEventTypes = [\echo, \arp];
+            eventTypesDict[\chain].value(server);
         });
 
         eventTypesDict.put(\presetEchoArp, {arg server;
-            ~chainedEventTypes = [\arp, \echo, \preset];
-            this.prChainEventType(server);
+            ~chainedEventTypes = [\preset, \echo, \arp];
+            eventTypesDict[\chain].value(server);
         });
+
     }
 
     *includeEventType { arg name, alias, overwrite = false;
@@ -322,12 +349,5 @@ EventTypes {
                 }
             }
         }
-    }
-
-    *prChainEventType {arg server;
-        // chain together multiple event types, ending with the \note type.
-        var nextEventType = ~chainedEventTypes.pop ? \note;
-        currentEnvironment.parent = Event.parentTypes.atFail(nextEventType, Event.default);
-        ~eventTypes[nextEventType].value(server);
     }
 }
